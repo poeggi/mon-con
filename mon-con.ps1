@@ -59,7 +59,7 @@
   
   .NOTES
   Author   : Kai Poggensee
-  Version  : 0.1 (2024-09-17) Initial Release  
+  Version  : 0.11 (2024-09-18) Initial Release (fixed)  
 
 #>
 
