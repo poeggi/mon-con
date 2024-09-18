@@ -97,8 +97,7 @@ param(
 $PUBLIC_DNS_SERVER_NAME = "one.one.one.one"
 
 # The Domain name (prefixed with a dynamic counter) to use for testing DNS
-$DNS_TEST_DOMAIN = "lowttl.poggensee.it" # TTL 30(s) for DNS testing (DEFAULT)
-#$DNS_TEST_DOMAIN = "highttl.poggensee.it" # TTL 3600(s) as an alternative
+$DNS_TEST_DOMAIN = "lowttl.poggensee.it" # TTL 30(s) for DNS testing
 
 # Define the public host to use for external testing.
 # NOTE: feasible choice is a host reachable always and everywhere, with HA
@@ -343,8 +342,10 @@ function getNetworkConfig {
 	getLanDnsServerName $IPConfig
 	getLanDnsServerIPs $IPConfig
 
-	# determine own AUX addresses
-	getAUXTestIPs $IPConfig
+	if (![string]::IsNullOrEmpty($AUX_DNS_NAME)) {
+		# determine own AUX addresses
+		getAUXTestIPs $IPConfig
+	}
 
 	# determine own Public test-host addresses
 	getPublicTestIPs $IPConfig
