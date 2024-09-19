@@ -1,6 +1,6 @@
 # mon-con.ps1
 ## SYNOPSIS
-MON(itor)-CON(nection) is a script to test and monitor your inet connection.
+MON(itor)-CON(nection), test and monitor your internet connection.
 
 ## SYNTAX
 ```powershell
@@ -8,15 +8,23 @@ mon-con.ps1 [-BeepOnError] [[-Display] <String>] [[-TestInterval] <Int32>] [[-Ti
 ```
 
 ## DESCRIPTION
-This script does monitor the complete chain of interfaces and connections,
-i.e. DEV<->LAN<->ROUTER<->INTERNET<->Ext.SERVER, IPv4 and IPv6, concurrently 
-From your local system all the way up the the mighty internet it tests
-different intermediate hops, that are automatically determined.
-It runs in the foreground and cyclically generates information.
+This script does monitor a chain of interfaces / connections.
+
+DEV<->LAN<->ROUTER<->INTERNET<->Ext.SERVER
+
+IPv4 and IPv6 are tested concurrently if available.
+
+From your local system, all the way up the the mighty internet, it tests
+different intermediate hops. These hops are automatically determined.
+
+It runs in the foreground and cyclically generates information on the console.
 
 There is a number of Ping and DNS tests already defined and enabled.
-Each test can either pass or fail. 
-Note: ping tests emit a warning if RTT is high, DNS if the TTL is 0.
+These tests should allow debugging an internet connection and help identify
+the cause for spurious connectivity problems.
+
+Each test can either pass (green) or fail (red). 
+Warnings (yellow) if a ping tests RTT is high or if a DNS TTL is 0.
 
 ## PARAMETERS
 ### -BeepOnError &lt;SwitchParameter&gt;
@@ -30,10 +38,10 @@ Accept wildcard characters?  false
 ```
  
 ### -Display &lt;String&gt;
-Define how to scroll the output and which information to retain.
-Full    -> Retain all test lines, scroll after each test (Default)
-Warning -> Retain lines with Error or Warning
-Error   -> Retain only lines with Error
+Define how to scroll the output and which information to retain.  
+Full    -> Retain all test lines, scroll after each test (Default)  
+Warning -> Retain lines with Error or Warning  
+Error   -> Retain only lines with Error  
 Note: Output will also retain margin, i.e. one line before/after an event.
 ```
 Required?                    false
@@ -44,8 +52,8 @@ Accept wildcard characters?  false
 ```
  
 ### -TestInterval &lt;Int32&gt;
-Defines the cycle time (in milliseconds) at which the script repeats tests.
-Default is 3000(ms), i.e. 3 seconds.
+Defines the [int] cycle time (in milliseconds) at which tests are repeated.
+Default is 3000(ms), i.e. 3 seconds.  
 NOTE: in most setups, 3 (seconds) is the lowest usable value.
 ```
 Required?                    false
@@ -56,8 +64,8 @@ Accept wildcard characters?  false
 ```
  
 ### -Timeout &lt;Int32&gt;
-The time to wait for any individual test to complete, in milliseconds.
-Default is 2000(ms), i.e. 2 seconds.
+The [int] time to wait for any individual test to complete, in milliseconds.
+Default is 2000(ms), i.e. 2 seconds.  
 NOTE: in most setups, 2 (seconds) is the lowest viable value.
 ```
 Required?                    false
@@ -92,16 +100,14 @@ Accept wildcard characters?  false
 None. You can't pipe objects.
 
 ## OUTPUTS
-Only Text (as this is a monitoring tool).
+Only Text (as this is a command-lineline live monitoring tool).
 
 ## NOTES
-Author   : Kai P.
-Version  : 0.11 (2024-09-18) Initial Release (fixed)
+Author   : Kai Poggensee  
+Version  : 0.12 (2024-09-19) - Documentation cleanup
 
 ## EXAMPLES
 ### EXAMPLE 1
 ```powershell
 PS>.\mon-con.ps1 -BeepOnError -Display Warning -Timeout 2500 -Verbose
 ```
-
-
