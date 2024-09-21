@@ -244,7 +244,7 @@ function getLanDnsServerName {
 	    [IPConfigClass]$IPConfig
 	)
 	try {
-		$LocalDnsAutoDetected = echo "exit" | nslookup.exe | Select-String -Pattern "^Default Server:.*" -CaseSensitive -Raw | Select-String -Pattern "[.:a-z0-9]*$" | % { $_.Matches } | % { $_.Value }		
+		$LocalDnsAutoDetected = echo "exit" | nslookup.exe | Select-String -Pattern "^.*erver:.*" -CaseSensitive -Raw | Select-String -Pattern "[.:a-z0-9]*$" | % { $_.Matches } | % { $_.Value }		
 		$IPConfig.LanDnsServerName = $LocalDNSAutoDetected
 	} catch {
 		Write-Error "Local DNS server could not be determined."
@@ -552,10 +552,10 @@ $PingTestCode = {
     }
 	
 	if ($?) {
-		if ("$output" -match 'Lost = 0 \(0') {
+		if ("$output" -match '\(0\%') { # match the 0 packets at 0% loss in a language agnostic way
 			$success = $True
-			
-			(($output | Select-String -Pattern "Reply.*time=.*ms" -Raw) -match "Reply.*time=(.*)ms") > $null
+
+			(($output | Select-String -Pattern "=.*ms$" -Raw) -match "=\s?([0-9]*)ms$") > $null
 			$RTT=[int]$matches[1]
 			# Assumption: RTT can always be 100ms, but even long distance normally not exceeds 500ms
 			if ($RTT -ge $(100 + ($OPT_MAXHOPS * 2))) {
