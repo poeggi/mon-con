@@ -38,6 +38,18 @@
 	Error   -> Retain only lines with Error  
 	Note: Output will also retain margin, i.e. one line before/after an event.
 
+	.PARAMETER FocusTest
+	With this [string] parameter only the Test requested is executed.
+	Also, all of the tests output is being piped and made visible to the user.
+
+	.PARAMETER Iterations
+	Define the [int] number of cycles that the test(s) will be run.  
+	Default is -1, i.e. infinitely (until CTRL-C is received).
+
+	.PARAMETER ListTests
+	Switch to make the script print a list of available tests.
+	No test(s) will actually be run.
+
 	.PARAMETER TestInterval
 	Defines the [int] cycle time (in milliseconds) at which tests are repeated.  
 	Default is 3000(ms), i.e. 3 seconds.  
@@ -47,13 +59,6 @@
 	The [int] time to wait for any individual test to complete, in milliseconds.
 	Default is 2000(ms), i.e. 2 seconds.  
 	NOTE: in most setups, 2 (seconds) is the lowest viable value.
-
-	.PARAMETER FocusTest
-	With this [string] parameter only the Test requested is executed.
-	Also, all of the tests output is being piped and made visible to the user.
-
-	.PARAMETER Iterations
-	Define the [int] number of cycles that the test will run.
 
 	.INPUTS
 	None. You can't pipe objects.
@@ -66,7 +71,7 @@
 
 	.NOTES
 	Author  : Kai Poggensee  
-	Version : 0.12 (2024-09-19) - Documentation cleanup
+	Version : 0.2 (2024-09-22) - PowerShell language agnostic and better help
 #>
 
 ##############################################################################
@@ -86,13 +91,15 @@ param(
 	[ValidateSet('Full','Warning','Error')]
 	[string]$Display = 'Full',
 	[Parameter()]
-	[int]$TestInterval = 3000,
-	[Parameter()]
-	[int]$Timeout = 2000,
-	[Parameter()]
 	[string]$FocusTest,
 	[Parameter()]
-	[int]$Iterations = -1
+	[int]$Iterations = -1,
+	[Parameter()]
+	[switch]$ListTests,
+	[Parameter()]
+	[int]$TestInterval = 3000,
+	[Parameter()]
+	[int]$Timeout = 2000
 )
 
 #
@@ -460,6 +467,20 @@ function jobsEvalThenPurge {
 	return @{fails=$fail; warnings=$warning}
 }
 
+function printTestInformationAsHelp {
+
+	foreach ($test in $tests) {
+		Write-Output ""
+		Write-Output "Test Name:   $($test.name)"
+		Write-Output "Description: $($test.descr)"
+		if ($test.enabled) {
+			Write-Output "(Test is currently ENabled)"
+		} else {
+			Write-Output "(Test is currently DISabled)"
+		}
+	}
+	Write-Output ""
+}
 
 # 
 # Generic test code definitions (used in the jobs the script spawns)
@@ -713,7 +734,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='P4-LOC';
-		descr='Ping the localhost (assinged IP) via IPv4';
+		descr='Ping this systems assinged local interface IPv4 address';
 		code=$PingTestCode;
 		args=('4', $IPConfig.OwnLanIPv4, 1, $Timeout);
 		dynargvar='';
@@ -721,7 +742,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='P6-LOC';
-		descr='Ping localhost (assigned IP) via IPv6';
+		descr='Ping this systems assinged local interface IPv6 address';
 		code=$PingTestCode;
 		args=('6', $IPConfig.OwnLanIPv6, 1, $Timeout);
 		dynargvar='';
@@ -729,7 +750,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='ST';
-		descr='SelfTest the Powershell Jobs system';
+		descr='SelfTest the PowerShell jobs system with a dummy job';
 		code=$SelftestDummyJobTestCode;
 		args=("FooBar");
 		dynargvar='';
@@ -771,6 +792,10 @@ $cycleStartTime = $programStartTime = Get-Date
 $cycleStartTime = $cycleStartTime.AddMilliseconds(-$TestInterval)
 $cycleStartTime = $cycleStartTime.AddMilliseconds(2*$SLEEP_WAIT_QUANTUM)
 
+if ($ListTests) {
+	printTestInformationAsHelp
+	exit
+}
 
 # main loop
 try {
