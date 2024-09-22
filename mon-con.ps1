@@ -6,73 +6,71 @@
 #Requires -Version 7
 
 <#
-  .SYNOPSIS
-  MON(itor)-CON(nection), test and monitor your internet connection.
-  
-  .DESCRIPTION
-  This script does monitor a chain of interfaces / connections.
-  
-  DEV<->LAN<->ROUTER<->INTERNET<->Ext.SERVER
-  
-  IPv4 and IPv6 are tested concurrently if available.
-  
-  From your local system, all the way up the the mighty internet, it tests
-  different intermediate hops. These hops are automatically determined.
-  
-  It runs in the foreground and cyclically generates information on the console.
-  
-  There is a number of Ping and DNS tests already defined and enabled.
-  These tests should allow debugging an internet connection and help identify
-  the cause for spurious connectivity problems.
+	.SYNOPSIS
+	MON(itor)-CON(nection), test and monitor your internet connection.
 
-  Each test can either pass (green) or fail (red). 
-  Warnings (yellow) if a ping tests RTT is high or if a DNS TTL is 0.
+	.DESCRIPTION
+	This script does monitor a chain of interfaces / connections.
 
+	DEV<->LAN<->ROUTER<->INTERNET<->Ext.SERVER
 
-  .PARAMETER BeepOnError
-  Give an acoustic feedback (beeping) for every test that failed.
-  
-  .PARAMETER Display
-  Define how to scroll the output and which information to retain.  
-  Full    -> Retain all test lines, scroll after each test (Default)  
-  Warning -> Retain lines with Error or Warning  
-  Error   -> Retain only lines with Error  
-  Note: Output will also retain margin, i.e. one line before/after an event.
+	IPv4 and IPv6 are tested concurrently if available.
 
-  .PARAMETER TestInterval
-  Defines the [int] cycle time (in milliseconds) at which tests are repeated.
-  Default is 3000(ms), i.e. 3 seconds.  
-  NOTE: in most setups, 3 (seconds) is the lowest usable value.
-    
-  .PARAMETER Timeout
-  The [int] time to wait for any individual test to complete, in milliseconds.
-  Default is 2000(ms), i.e. 2 seconds.  
-  NOTE: in most setups, 2 (seconds) is the lowest viable value.
-	
-  .PARAMETER FocusTest
-  With this parameter only the Test named [string] is executed.
-  Also, all of the tests output is being piped and made visible to the user.
-  
-  .PARAMETER Iterations
-  Define the [int] number of cycles that the test will run.
+	From your local system, all the way up the the mighty internet, it tests
+	different intermediate hops. These hops are automatically determined.
 
-  .INPUTS
-  None. You can't pipe objects.
+	It runs in the foreground and cyclically generates information on the console.
 
-  .OUTPUTS
-  Only Text (as this is a command-lineline live monitoring tool).
+	There is a number of Ping and DNS tests already defined and enabled.
+	These tests should allow debugging an internet connection and help identify
+	the cause for spurious connectivity problems.
 
-  .EXAMPLE
-  PS> .\mon-con.ps1 -BeepOnError -Display Warning -Timeout 2500 -Verbose
-  
-  .NOTES
-  Author   : Kai Poggensee  
-  Version  : 0.12 (2024-09-19) - Documentation cleanup  
+	Each test can either pass (green) or fail (red).  
+	Warnings (yellow) if a ping tests RTT is high or if a DNS TTL is 0.
 
+	.PARAMETER BeepOnError
+	Switch that enables acoustic feedback (beeping) for every test that failed.
+
+	.PARAMETER Display
+	Define [enum] how to scroll the output and which information to retain.  
+	Full    -> Retain all test lines, scroll after each test (Default)  
+	Warning -> Retain lines with Error or Warning  
+	Error   -> Retain only lines with Error  
+	Note: Output will also retain margin, i.e. one line before/after an event.
+
+	.PARAMETER TestInterval
+	Defines the [int] cycle time (in milliseconds) at which tests are repeated.  
+	Default is 3000(ms), i.e. 3 seconds.  
+	NOTE: in most setups, 3 (seconds) is the lowest usable value.
+
+	.PARAMETER Timeout
+	The [int] time to wait for any individual test to complete, in milliseconds.
+	Default is 2000(ms), i.e. 2 seconds.  
+	NOTE: in most setups, 2 (seconds) is the lowest viable value.
+
+	.PARAMETER FocusTest
+	With this [string] parameter only the Test requested is executed.
+	Also, all of the tests output is being piped and made visible to the user.
+
+	.PARAMETER Iterations
+	Define the [int] number of cycles that the test will run.
+
+	.INPUTS
+	None. You can't pipe objects.
+
+	.OUTPUTS
+	Only Text (as this is a command-lineline live monitoring tool).
+
+	.EXAMPLE
+	PS> .\mon-con.ps1 -BeepOnError -Display Warning -Timeout 2500 -Verbose
+
+	.NOTES
+	Author  : Kai Poggensee  
+	Version : 0.12 (2024-09-19) - Documentation cleanup
 #>
 
 ##############################################################################
-# TODO: move test statistics to struct instead of using ugly _PASS _FAIL hack.
+# TODO: move test statistics to class instead of using ugly _PASS _FAIL hack.
 ##############################################################################
 
 #
@@ -82,19 +80,19 @@
 [CmdletBinding()]
 
 param(
-    [Parameter()]
-    [switch]$BeepOnError,
-    [Parameter()]
-	[ValidateSet('Full','Warning','Error')]
-    [string]$Display = 'Full',
-    [Parameter()]
-    [int]$TestInterval = 3000,
-    [Parameter()]
-    [int]$Timeout = 2000,
-    [Parameter()]
-    [string]$FocusTest,
 	[Parameter()]
-    [int]$Iterations = -1
+	[switch]$BeepOnError,
+	[Parameter()]
+	[ValidateSet('Full','Warning','Error')]
+	[string]$Display = 'Full',
+	[Parameter()]
+	[int]$TestInterval = 3000,
+	[Parameter()]
+	[int]$Timeout = 2000,
+	[Parameter()]
+	[string]$FocusTest,
+	[Parameter()]
+	[int]$Iterations = -1
 )
 
 #
@@ -150,12 +148,12 @@ class IPConfigClass
 	[ipaddress]$PublicTestHost2AddrIPv4
 	[ipaddress]$PublicTestHost2AddrIPv6
 	
-    [string] printDetails () # class method returning all
+	[string] printDetails () # class method returning all
 	{
 		$retVal = ""
 		foreach ($o in $this) {$retVal += $o}
 		return $retVal
-    }
+	}
 }
 
 class TestClass
@@ -181,7 +179,7 @@ class TestCollectionClass
 		$retVal = $null
 		foreach ($test in .this.$tests) { if ($_.name -eq "x") {} }
 		return $retVal
-    }
+	}
 }
 
 
@@ -200,8 +198,8 @@ New-Variable -Option Constant -Name IPv4_REGEXP -Value '^(?:(?:25[0-5]|2[0-4][0-
 
 function getLocalHostIPs {
 	param (
-	    [Parameter(mandatory=$True)]
-	    [IPConfigClass]$IPConfig
+		[Parameter(mandatory=$True)]
+		[IPConfigClass]$IPConfig
 	)
 	try {
 		# NOTE: methodology of determining the address differs for IPv4 and v6
@@ -221,8 +219,8 @@ function getLocalHostIPs {
 
 function getDefaultRouterIPs {
 	param (
-	    [Parameter(mandatory=$True)]
-	    [IPConfigClass]$IPConfig
+		[Parameter(mandatory=$True)]
+		[IPConfigClass]$IPConfig
 	)
 	$gateways = (Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.IPEnabled}).DefaultIPGateway
 	foreach ($ip in $gateways) {
@@ -240,8 +238,8 @@ function getDefaultRouterIPs {
 
 function getLanDnsServerName {
 	param (
-	    [Parameter(mandatory=$True)]
-	    [IPConfigClass]$IPConfig
+		[Parameter(mandatory=$True)]
+		[IPConfigClass]$IPConfig
 	)
 	try {
 		$LocalDnsAutoDetected = echo "exit" | nslookup.exe | Select-String -Pattern "^.*erver:.*" -CaseSensitive -Raw | Select-String -Pattern "[.:a-z0-9]*$" | % { $_.Matches } | % { $_.Value }		
@@ -256,8 +254,8 @@ function getLanDnsServerName {
 
 function getPublicDnsServerIPs {
 	param (
-	    [Parameter(mandatory=$True)]
-	    [IPConfigClass]$IPConfig
+		[Parameter(mandatory=$True)]
+		[IPConfigClass]$IPConfig
 	)
 	try {
 		$IPConfig.PublicDnsServerIPv4 = Resolve-DnsName -QuickTimeout -type A $PUBLIC_DNS_SERVER_NAME |  Where-Object -Property section -eq "Answer" | Select-Object -first 1 | select -ExpandProperty IPAddress
@@ -275,8 +273,8 @@ function getPublicDnsServerIPs {
 
 function getLanDnsServerIPs {
 	param (
-	    [Parameter(mandatory=$True)]
-	    [IPConfigClass]$IPConfig
+		[Parameter(mandatory=$True)]
+		[IPConfigClass]$IPConfig
 	)
 	try {
 		$IPConfig.LanDnsServerIPv4 = Resolve-DnsName -QuickTimeout -type A $IPConfig.LanDnsServerName |  Where-Object -Property section -eq "Answer" | Select-Object -first 1 | select -ExpandProperty IPAddress
@@ -293,8 +291,8 @@ function getLanDnsServerIPs {
 
 function getAUXTestIPs {
 	param (
-	    [Parameter(mandatory=$True)]
-	    [IPConfigClass]$IPConfig
+		[Parameter(mandatory=$True)]
+		[IPConfigClass]$IPConfig
 	)
 	try {
 		$IPConfig.AUXAddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$AUX_DNS_NAME." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
@@ -311,8 +309,8 @@ function getAUXTestIPs {
 
 function getPublicTestIPs {
 	param (
-	    [Parameter(mandatory=$True)]
-	    [IPConfigClass]$IPConfig
+		[Parameter(mandatory=$True)]
+		[IPConfigClass]$IPConfig
 	)
 	try {
 		$IPConfig.PublicTestHost1AddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$EXT_TEST_HOST1." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
@@ -335,8 +333,8 @@ function getPublicTestIPs {
 
 function getNetworkConfig {
 	param (
-	    [Parameter(mandatory=$True)]
-	    [IPConfigClass]$IPConfig
+		[Parameter(mandatory=$True)]
+		[IPConfigClass]$IPConfig
 	)
 	
 	# determine local IP addresses
@@ -360,44 +358,44 @@ function getNetworkConfig {
 }   
 
 function throwOnCtrlC {
-    while ([Console]::KeyAvailable) {
-        $readKey = [Console]::ReadKey($True)
-        if ($readKey.Modifiers -eq "Control" -and $readKey.Key -eq "C"){                
-            # throw exception to be handled
-            throw
-        }
-    }
-    return $True
+	while ([Console]::KeyAvailable) {
+		$readKey = [Console]::ReadKey($True)
+		if ($readKey.Modifiers -eq "Control" -and $readKey.Key -eq "C"){				
+			# throw exception to be handled
+			throw
+		}
+	}
+	return $True
 }
 
 function clearCurrentConsoleLine {
 	$CurrentLine  = $Host.UI.RawUI.CursorPosition.Y
-    $ConsoleWidth = $Host.UI.RawUI.BufferSize.Width	
-    [Console]::SetCursorPosition(0,($CurrentLine))
-    [Console]::Write("{0,-$ConsoleWidth}" -f " ")
+	$ConsoleWidth = $Host.UI.RawUI.BufferSize.Width	
+	[Console]::SetCursorPosition(0,($CurrentLine))
+	[Console]::Write("{0,-$ConsoleWidth}" -f " ")
 	[Console]::SetCursorPosition(0,($CurrentLine))
 }
 
 function writeSpin ($counter) {
-    $spin = @('|', '/', '-', '\')
-    $counter = $counter % $spin.Length
+	$spin = @('|', '/', '-', '\')
+	$counter = $counter % $spin.Length
    
-    Write-Host $spin[$counter] -NoNewLine
+	Write-Host $spin[$counter] -NoNewLine
 
-    $counter++
-    $counter = $counter % $spin.Length
-    
-    return $counter
+	$counter++
+	$counter = $counter % $spin.Length
+	
+	return $counter
 }
 
 function jobsEvalThenPurge {
 
-    foreach ($job in Get-Job) {
+	foreach ($job in Get-Job) {
 
 		$OutputJob = 0
-        Write-Host " " -NoNewLine
-        if ($job.State -eq 'Completed') {
-            $vname = $job.Name + "_PASS"
+		Write-Host " " -NoNewLine
+		if ($job.State -eq 'Completed') {
+			$vname = $job.Name + "_PASS"
 			
 			$jobOutput = Receive-Job -job $job -Keep
 			if (!($jobOutput -match "Warning:")) {
@@ -411,33 +409,33 @@ function jobsEvalThenPurge {
 					$OutputJob = 1
 				}
 			}
-        } elseif ($job.State -eq 'Failed') { # Fails means exception
-            # FAILURE => RED
+		} elseif ($job.State -eq 'Failed') { # Fails means exception
+			# FAILURE => RED
 			if ($VerbosePreference -or $DebugPreference) {
 				$OutputJob = 1
 			}
-            $vname = $job.Name + "_FAIL"
-            $fail = $fail + 1
-            Write-Host $job.Name -NoNewLine -ForeGroundColor Red
+			$vname = $job.Name + "_FAIL"
+			$fail = $fail + 1
+			Write-Host $job.Name -NoNewLine -ForeGroundColor Red
 			if ($BeepOnError) {[Console]::Beep()}
-        } elseif ($job.State -eq 'Stopped') {
-            # job was stopped (the way to timeout)
+		} elseif ($job.State -eq 'Stopped') {
+			# job was stopped (the way to timeout)
 			if ($VerbosePreference -or $DebugPreference) {
 				$OutputJob = 1
 			}
-            $vname = $job.Name + "_FAIL" # TODO: separate timeout management
-            $fail = 1
-            Write-Host $job.Name -NoNewLine -ForeGroundColor Blue
-        } else {
-            # irregular (other state - e.g. unfinished)
-            $vname = ""
-            Write-Host $job.Name -NoNewLine -ForeGroundColor DarkGray
-            continue
-        }
+			$vname = $job.Name + "_FAIL" # TODO: separate timeout management
+			$fail = 1
+			Write-Host $job.Name -NoNewLine -ForeGroundColor Blue
+		} else {
+			# irregular (other state - e.g. unfinished)
+			$vname = ""
+			Write-Host $job.Name -NoNewLine -ForeGroundColor DarkGray
+			continue
+		}
 
-        $temp = get-variable -name "$vname" -ValueOnly -ErrorAction SilentlyContinue
-        $temp++
-        set-variable -name "$vname" -value $temp -scope Script
+		$temp = get-variable -name "$vname" -ValueOnly -ErrorAction SilentlyContinue
+		$temp++
+		set-variable -name "$vname" -value $temp -scope Script
 		
 		if (($VerbosePreference -and $OutputJob) -or $DebugPreference) {
 			$jobOutput = Receive-Job -job $job
@@ -458,8 +456,8 @@ function jobsEvalThenPurge {
 		}
 
 		Remove-Job -job $job
-    }
-    return @{fails=$fail; warnings=$warning}
+	}
+	return @{fails=$fail; warnings=$warning}
 }
 
 
@@ -468,9 +466,9 @@ function jobsEvalThenPurge {
 #
 
 $SelftestDummyJobTestCode = {
-    param (
-	    [Parameter(Position=0,mandatory=$True)]
-	    [string]$DEBUG_TESTOUTPUT
+	param (
+		[Parameter(Position=0,mandatory=$True)]
+		[string]$DEBUG_TESTOUTPUT
 	)
 	Write-Output "Starting Self-test job, total runtime 250ms."
 	Write-Output "Sleeping 200ms..."
@@ -484,8 +482,8 @@ $SelftestDummyJobTestCode = {
 
 
 $DNSTestCode = {
-    param (
-	    [Parameter(Position=0,mandatory=$True)]
+	param (
+		[Parameter(Position=0,mandatory=$True)]
 		[string]$DNS_RECORD_TYPE,
 		[Parameter(Position=1,mandatory=$True)]
 		[string]$DNS_SERVER,
@@ -496,13 +494,13 @@ $DNSTestCode = {
 	)
 	# NOTE: appending a "." to the TARGET to make FQDN handed over and resolved
 	$TargetFQDN = "$TARGET."
-    if ($OPT_NOREC) {
-        $output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -NoRecursion -QuickTimeout -Name $TargetFQDN	2> $error
-    } else {
+	if ($OPT_NOREC) {
+		$output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -NoRecursion -QuickTimeout -Name $TargetFQDN	2> $error
+	} else {
 		$output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -QuickTimeout -Name $TargetFQDN 2> $error
-    }
+	}
 
-    if ($?) {
+	if ($?) {
 		$result = $output | Where-Object -Property name -eq "$TARGET" | Where-Object -Property type -eq "$DNS_RECORD_TYPE" | Where-Object -Property section -eq "Answer"
 		if ($result) {
 			$success = $True
@@ -527,8 +525,8 @@ $DNSTestCode = {
 }
 
 $PingTestCode = {
-    param (
-	    [Parameter(Position=0,mandatory=$True)]
+	param (
+		[Parameter(Position=0,mandatory=$True)]
 		[int]$IPVER,
 		[Parameter(Position=1,mandatory=$True)]
 		[string]$TARGET,
@@ -536,20 +534,20 @@ $PingTestCode = {
 		[int]$OPT_MAXHOPS = 128,
 		[Parameter(Position=3,mandatory=$False)]
 		[int]$TIMEOUT_PING
-    )
+	)
 	if ($TARGET.length -lt 1) {
 		Write-Output "Missing or empty parameter TARGET. Aborting ping test."
 		throw "Missing parameter TARGET"
 	}
 	
 	if ($IPVER -eq 4) {
-        $output = (ping -4 -n 1 -i $OPT_MAXHOPS -w $TIMEOUT_PING $TARGET) 2> $error
-    } elseif ($IPVER -eq 6) {
-        $output = (ping -6 -n 1 -i $OPT_MAXHOPS -w $TIMEOUT_PING $TARGET) 2> $error
-    } else {
+		$output = (ping -4 -n 1 -i $OPT_MAXHOPS -w $TIMEOUT_PING $TARGET) 2> $error
+	} elseif ($IPVER -eq 6) {
+		$output = (ping -6 -n 1 -i $OPT_MAXHOPS -w $TIMEOUT_PING $TARGET) 2> $error
+	} else {
 		Write-Output "Invalid parameter IPVER. Aborting ping test."
-        throw "Invalid parameter IPVER set to '$IPVER'"
-    }
+		throw "Invalid parameter IPVER set to '$IPVER'"
+	}
 	
 	if ($?) {
 		if ("$output" -match '\(0\%') { # match the 0 packets at 0% loss in a language agnostic way
@@ -780,43 +778,43 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	{
 	$stuffChars = ($Cycle.ToString().Length -lt 5) ? 5-$Cycle.ToString().Length : 0
 
-    # NOTE: dedicated DNS names, entries crafted to have a very low TTL 
-    #       as to not measure cached -> but ensure external requests
-    $SHORT_TTL_DNSTEST_HOST = "${DNSTestDynPrefix}.${DNS_TEST_DOMAIN}"
+	# NOTE: dedicated DNS names, entries crafted to have a very low TTL 
+	#	   as to not measure cached -> but ensure external requests
+	$SHORT_TTL_DNSTEST_HOST = "${DNSTestDynPrefix}.${DNS_TEST_DOMAIN}"
 
-    # signal that we start
-    if ($CyclesWithFail -gt 1) {
-        Write-Host ((' ' * $stuffChars) + "#${Cycle}") -NoNewLine -ForeGroundColor Red
-    } elseif ($CyclesWithFail -gt 0) {
-        Write-Host ((' ' * $stuffChars) + "#${Cycle}") -NoNewLine -ForeGroundColor Yellow
-    } else {
-        Write-Host ((' ' * $stuffChars) + "#${Cycle}") -NoNewLine -ForeGroundColor Green
-    }
+	# signal that we start
+	if ($CyclesWithFail -gt 1) {
+		Write-Host ((' ' * $stuffChars) + "#${Cycle}") -NoNewLine -ForeGroundColor Red
+	} elseif ($CyclesWithFail -gt 0) {
+		Write-Host ((' ' * $stuffChars) + "#${Cycle}") -NoNewLine -ForeGroundColor Yellow
+	} else {
+		Write-Host ((' ' * $stuffChars) + "#${Cycle}") -NoNewLine -ForeGroundColor Green
+	}
 
 	# rate limit tests, delay next start if needed
-    $count = 0
-    do {
-        $currentTime = Get-Date
-        $timeLapsedSinceLastCycle = ($currentTime - $cycleStartTime).Totalmilliseconds
-        if (($timeLapsedSinceLastCycle + (2*$SLEEP_WAIT_QUANTUM)) -ge $TestInterval) { break }
+	$count = 0
+	do {
+		$currentTime = Get-Date
+		$timeLapsedSinceLastCycle = ($currentTime - $cycleStartTime).Totalmilliseconds
+		if (($timeLapsedSinceLastCycle + (2*$SLEEP_WAIT_QUANTUM)) -ge $TestInterval) { break }
 		[console]::CursorVisible = $False
-        $count = writeSpin $count
-        Start-Sleep -Milliseconds $SLEEP_WAIT_QUANTUM
-        Write-Host "`b" -NoNewLine
+		$count = writeSpin $count
+		Start-Sleep -Milliseconds $SLEEP_WAIT_QUANTUM
+		Write-Host "`b" -NoNewLine
 		[console]::CursorVisible = $True
-    } while ( throwOnCtrlC )
+	} while ( throwOnCtrlC )
 
-    if ($timeLapsedSinceLastCycle -le $TestInterval) {
-        $cycleStartTime = $cycleStartTime.Addmilliseconds($TestInterval)
-    } else {
-        $cycleStartTime = Get-Date
+	if ($timeLapsedSinceLastCycle -le $TestInterval) {
+		$cycleStartTime = $cycleStartTime.Addmilliseconds($TestInterval)
+	} else {
+		$cycleStartTime = Get-Date
 		if ($VerbosePreference) {
 			Write-Warning "Unable to match requested test period, re-baselining cycle time."
 		}
-    }
+	}
 
-    $timeStamp = $cycleStartTime | Get-Date -Format "HH:mm:ss"	
-    Write-Host " ($timeStamp):" -NoNewLine
+	$timeStamp = $cycleStartTime | Get-Date -Format "HH:mm:ss"	
+	Write-Host " ($timeStamp):" -NoNewLine
 
 	# start all enabled tests
 	foreach ($test in $tests) {
@@ -846,29 +844,29 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	# abort jobs that have not finished by now
 	Get-Job -State Running | Stop-Job
 	
-    # consider this a complete cycle
+	# consider this a complete cycle
 	$Cycle++
 	
 	# check if user wants to abort (via Ctrl-c)
 	$null = throwOnCtrlC	
 
 	# statistics and housekeeping
-    $LastCycleHadFail = $CycleHadFail
-    $LastCycleHadWarning = $CycleHadWarning
+	$LastCycleHadFail = $CycleHadFail
+	$LastCycleHadWarning = $CycleHadWarning
 
-    $jobStatistics = jobsEvalThenPurge
+	$jobStatistics = jobsEvalThenPurge
 	$CycleHadFail = $jobStatistics.Fails
 	$CycleHadWarning = $jobStatistics.Warnings
 	
-    $CyclesWithFail += $CycleHadFail
-    $CyclesWithWarnings += $CycleHadWarning
+	$CyclesWithFail += $CycleHadFail
+	$CyclesWithWarnings += $CycleHadWarning
 
-    Write-Host "." -NoNewLine
-    $null = throwOnCtrlC
+	Write-Host "." -NoNewLine
+	$null = throwOnCtrlC
 
 	if (($Display -eq "Full") -or
-	    (($Display -eq "Warning") -and ($LastCycleHadFail -or $CycleHadFail -or $LastCycleHadWarning -or $CycleHadWarning)) -or
-	    (($Display -eq "Error") -and ($LastCycleHadFail -or $CycleHadFail)) -or
+		(($Display -eq "Warning") -and ($LastCycleHadFail -or $CycleHadFail -or $LastCycleHadWarning -or $CycleHadWarning)) -or
+		(($Display -eq "Error") -and ($LastCycleHadFail -or $CycleHadFail)) -or
 		($Cycle -le 1)) {
 		Write-Host
 	} else {
@@ -883,74 +881,74 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	Get-Job | Wait-Job -Timeout $TIMEOUT_S > $null
 	Get-Job -State Running | Stop-Job
 
-    # close out on started jobs
+	# close out on started jobs
 	
-    $null = jobsEvalThenPurge
+	$null = jobsEvalThenPurge
 } finally {
-    $programEndTime = Get-Date
-    $programLength = [Math]::Round(($programEndTime - $programStartTime).Totalseconds,0)
+	$programEndTime = Get-Date
+	$programLength = [Math]::Round(($programEndTime - $programStartTime).Totalseconds,0)
 
-    # notify we are stopping
-    Write-Host " "
-    Write-Host "Ending mon-con after $Cycle complete cycle(s), runtime was ~$programLength second(s)."
+	# notify we are stopping
+	Write-Host " "
+	Write-Host "Ending mon-con after $Cycle complete cycle(s), runtime was ~$programLength second(s)."
 
-    # abort in orderly fashion
-    $jobs = Get-Job
-    if ($jobs) {
-        Write-Host "Gathering last results from run #${CYCLE}: " -NoNewLine
-        $results = Wait-Job -Timeout 0.1 -job $jobs
+	# abort in orderly fashion
+	$jobs = Get-Job
+	if ($jobs) {
+		Write-Host "Gathering last results from run #${CYCLE}: " -NoNewLine
+		$results = Wait-Job -Timeout 0.1 -job $jobs
 		# abort jobs that have not finished by now
 		Get-Job | Stop-Job
 		
-        $null = jobsEvalThenPurge
-        Write-Host ""
-    }
+		$null = jobsEvalThenPurge
+		Write-Host ""
+	}
 
-    # safeguard to really have everything terminated
-    Get-Job | Remove-Job -Force -ErrorAction SilentlyContinue
+	# safeguard to really have everything terminated
+	Get-Job | Remove-Job -Force -ErrorAction SilentlyContinue
 
-    # generate and output summary stats
-    Write-Host ""
-    Write-Host "Test Results Summary:"
-    foreach ($test in $tests) {
-        if ($test.enabled) {
-            $vname_fail = $test.Name + "_FAIL"
-            $vname_pass = $test.Name + "_PASS"
-            $vname_total = $test.Name + "_TOTAL"
+	# generate and output summary stats
+	Write-Host ""
+	Write-Host "Test Results Summary:"
+	foreach ($test in $tests) {
+		if ($test.enabled) {
+			$vname_fail = $test.Name + "_FAIL"
+			$vname_pass = $test.Name + "_PASS"
+			$vname_total = $test.Name + "_TOTAL"
 
-            $temp_fail = get-variable -name "$vname_fail" -ValueOnly -ErrorAction SilentlyContinue
-            $temp_pass = get-variable -name "$vname_pass" -ValueOnly -ErrorAction SilentlyContinue
-            if ($temp_pass) {} else {$temp_pass = 0}
+			$temp_fail = get-variable -name "$vname_fail" -ValueOnly -ErrorAction SilentlyContinue
+			$temp_pass = get-variable -name "$vname_pass" -ValueOnly -ErrorAction SilentlyContinue
+			if ($temp_pass) {} else {$temp_pass = 0}
 
-            $temp_total = $temp_fail + $temp_pass
-            set-variable -name "$vname_total" -value $temp_total
+			$temp_total = $temp_fail + $temp_pass
+			set-variable -name "$vname_total" -value $temp_total
 
-            if ($temp_total -gt 0) {
-                $temp_percent = [Math]::Round($temp_pass / $temp_total * 100, 2)
-            } else {
-                $temp_percent = "N/A"
-            }
-            $stuffChars=($test.name.Length -lt 12) ? 12-$test.name.Length : 0 
-            Write-Host ($test.name + (' ' * $stuffChars) + ':') -NoNewLine
-            if ($temp_fail -gt 1) {
-                Write-Host $temp_percent% -NoNewLine -ForeGroundColor Red
-            } elseif ($temp_fail -gt 0) {
-                Write-Host $temp_percent% -NoNewLine -ForeGroundColor Yellow
-            } else {
-                Write-Host $temp_percent% -NoNewLine -ForeGroundColor Green
-            }
-            Write-Host " ($temp_pass/$temp_total)" -NoNewLine
-            Write-Host "   pass% (passed/total)" -ForeGroundColor DarkGray
-        } else {
+			if ($temp_total -gt 0) {
+				$temp_percent = [Math]::Round($temp_pass / $temp_total * 100, 2)
+			} else {
+				$temp_percent = "N/A"
+			}
+			$stuffChars=($test.name.Length -lt 12) ? 12-$test.name.Length : 0 
+			Write-Host ($test.name + (' ' * $stuffChars) + ':') -NoNewLine
+			if ($temp_fail -gt 1) {
+				Write-Host $temp_percent% -NoNewLine -ForeGroundColor Red
+			} elseif ($temp_fail -gt 0) {
+				Write-Host $temp_percent% -NoNewLine -ForeGroundColor Yellow
+			} else {
+				Write-Host $temp_percent% -NoNewLine -ForeGroundColor Green
+			}
+			Write-Host " ($temp_pass/$temp_total)" -NoNewLine
+			Write-Host "   pass% (passed/total)" -ForeGroundColor DarkGray
+		} else {
 			Write-Debug "$($test.Name) is disabled: No stats."
-        }
-    }
+		}
+	}
 
 	# reset priority of the PowerShell
 	(Get-Process -Id $PID).PriorityClass = $startupPriority
 
-    # re-enable Ctrl-c
-    [Console]::TreatControlCAsInput = $False
+	# re-enable Ctrl-c
+	[Console]::TreatControlCAsInput = $False
 
-    Write-Host "Exiting."
+	Write-Host "Exiting."
 }
