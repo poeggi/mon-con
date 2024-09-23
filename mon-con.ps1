@@ -491,6 +491,15 @@ $SelftestDummyJobTestCode = {
 		[Parameter(Position=0,mandatory=$True)]
 		[string]$DEBUG_TESTOUTPUT
 	)
+	if($PSVersionTable.PSVersion.Major -lt 7) {
+		Write-Output "Failed: PowerShell is not v7, how did we get here? Aborting."
+		throw
+	}
+	if($PSVersionTable.PSVersion.Minor -lt 4) {
+		Write-Output "Warning: PowerShell version is outdated, expect sub-par performance!"
+	}
+	Write-Output "Running PowerShell Version: $($PSVersionTable.PSVersion.ToString())"
+	
 	Write-Output "Starting Self-test job, total runtime 250ms."
 	Write-Output "Sleeping 200ms..."
 	Start-Sleep -Milliseconds 200
