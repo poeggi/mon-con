@@ -404,7 +404,7 @@ function jobsEvalThenPurge {
 		if ($job.State -eq 'Completed') {
 			$vname = $job.Name + "_PASS"
 			
-			$jobOutput = Receive-Job -job $job -Keep
+			$jobOutput = Receive-Job -job $job -Keep 2>&1
 			if (!($jobOutput -match "Warning:")) {
 				# TEST OK => GREEN
 				Write-Host $job.Name -NoNewLine -ForeGroundColor Green
@@ -445,8 +445,7 @@ function jobsEvalThenPurge {
 		set-variable -name "$vname" -value $temp -scope Script
 		
 		if (($VerbosePreference -and $OutputJob) -or $DebugPreference) {
-			$jobOutput = Receive-Job -job $job
-
+			$jobOutput = Receive-Job -job $job 2>&1
 			if ($jobOutput -eq "") {
 				$jobOutput = $job.Name + ": No output generated."
 			}
@@ -517,13 +516,14 @@ $DNSTestCode = {
 		[string]$DNS_RECORD_TYPE,
 		[Parameter(Position=1,mandatory=$True)]
 		[string]$DNS_SERVER,
-		[Parameter(Position=2,mandatory=$True)]
-		[string]$TARGET,
-		[Parameter(Position=3,mandatory=$False)]
-		[bool]$OPT_NOREC = $False
+		[Parameter(Position=2,mandatory=$False)]
+		[bool]$OPT_NOREC = $False,
+		[Parameter(Position=3,mandatory=$True)]
+		[string]$TARGET
 	)
 	# NOTE: appending a "." to the TARGET to make FQDN handed over and resolved
-	$TargetFQDN = "$TARGET."
+	$TargetFQDN = "${TARGET}."
+	Write-Output "Trying to Resolve $($DNS_RECORD_TYPE) of $($TargetFQDN)"
 	if ($OPT_NOREC) {
 		$output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -NoRecursion -QuickTimeout -Name $TargetFQDN	2> $error
 	} else {
@@ -636,7 +636,7 @@ getNetworkConfig $IPConfig
 		name='D4-PUB';
 		descr='DNS resolve external hosts "A" record via generic public DNS server, using IPv4';
 		code=$DNSTestCode;
-		args=('A', $IPConfig.PublicDnsServerIPv4.IPAddressToString);
+		args=('A', $IPConfig.PublicDnsServerIPv4.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
 		enabled=$True
 	}
@@ -644,7 +644,7 @@ getNetworkConfig $IPConfig
 		name='D6-PUB';
 		descr='DNS resolve ext. hosts "AAAA" record via generic public DNS server, using IPv6';
 		code=$DNSTestCode;
-		args=('AAAA', $IPConfig.PublicDnsServerIPv6.IPAddressToString);
+		args=('AAAA', $IPConfig.PublicDnsServerIPv6.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
 		enabled=$True;
 	}
@@ -652,7 +652,7 @@ getNetworkConfig $IPConfig
 		name='D4-EXT';
 		descr='DNS resolve an external "A" record via the local (LAN) DNS server, using IPv4';
 		code=$DNSTestCode;
-		args=('A', $IPConfig.LanDnsServerIPv4.IPAddressToString);
+		args=('A', $IPConfig.LanDnsServerIPv4.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
 		enabled=$True
 	}
@@ -660,7 +660,7 @@ getNetworkConfig $IPConfig
 		name='D6-EXT';
 		descr='DNS resolve an ext. "AAAA" record via the local (LAN) DNS server, using IPv6';
 		code=$DNSTestCode;
-		args=('AAAA', $IPConfig.LanDnsServerIPv6.IPAddressToString);
+		args=('AAAA', $IPConfig.LanDnsServerIPv6.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
 		enabled=$True;
 	}
@@ -668,7 +668,7 @@ getNetworkConfig $IPConfig
 		name='D4-INT';
 		descr='DNS resolve an on-site hosts "A" record (no recursion), via IPv4';
 		code=$DNSTestCode;
-		args=('A', $IPConfig.LanDnsServerIPv4.IPAddressToString, $IPConfig.LanDnsServerName, [bool]1);
+		args=('A', $IPConfig.LanDnsServerIPv4.IPAddressToString, [bool]1, $IPConfig.LanDnsServerName);
 		dynargvar='';
 		enabled=$True;
 	}
@@ -676,7 +676,7 @@ getNetworkConfig $IPConfig
 		name='D6-INT';
 		descr='DNS resolve on-site hosts "AAAA" record (no recursion), via IPv6';
 		code=$DNSTestCode;
-		args=('AAAA', $IPConfig.LanDnsServerIPv6.IPAddressToString, $IPConfig.LanDnsServerName, [bool]1);
+		args=('AAAA', $IPConfig.LanDnsServerIPv6.IPAddressToString, [bool]1, $IPConfig.LanDnsServerName);
 		dynargvar='';
 		enabled=$True;
 	}
