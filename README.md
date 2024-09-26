@@ -1,10 +1,10 @@
-# mon-con.ps1
+# .\mon-con.ps1
 ## SYNOPSIS
 MON(itor)-CON(nection), test and monitor your internet connection.
 
 ## SYNTAX
 ```powershell
-mon-con.ps1 [-BeepOnError] [[-Display] <String>] [[-TestInterval] <Int32>] [[-Timeout] <Int32>] [[-FocusTest] <String>] [[-Iterations] <Int32>] [<CommonParameters>]
+.\mon-con.ps1 [-BeepOnError] [[-Display] <String>] [[-FocusTest] <String>] [[-Iterations] <Int32>] [-ListTests] [[-TestInterval] <Int32>] [[-Timeout] <Int32>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -12,7 +12,7 @@ This script does monitor a chain of interfaces / connections.
 
 DEV<->LAN<->ROUTER<->INTERNET<->Ext.SERVER
 
-IPv4 and IPv6 are tested concurrently if available.
+IPv4 and IPv6 are tested concurrently, if available.
 
 From your local system, all the way up the the mighty internet, it tests
 different intermediate hops. These hops are automatically determined.
@@ -23,12 +23,12 @@ There is a number of Ping and DNS tests already defined and enabled.
 These tests should allow debugging an internet connection and help identify
 the cause for spurious connectivity problems.
 
-Each test can either pass (green) or fail (red). 
-Warnings (yellow) if a ping tests RTT is high or if a DNS TTL is 0.
+Each test can either pass (green) or fail (red).  
+Warnings in (yellow), e.g. if a ping tests RTT is high or DNS TTL is 0.
 
 ## PARAMETERS
 ### -BeepOnError &lt;SwitchParameter&gt;
-Give an acoustic feedback (beeping) for every test that failed.
+Switch to enable acoustic feedback (beeping) for every test that failed.
 ```
 Required?                    false
 Position?                    named
@@ -38,7 +38,7 @@ Accept wildcard characters?  false
 ```
  
 ### -Display &lt;String&gt;
-Define how to scroll the output and which information to retain.  
+Define [enum] how to scroll the output and which information to retain.  
 Full    -> Retain all test lines, scroll after each test (Default)  
 Warning -> Retain lines with Error or Warning  
 Error   -> Retain only lines with Error  
@@ -51,13 +51,45 @@ Accept pipeline input?       false
 Accept wildcard characters?  false
 ```
  
+### -FocusTest &lt;String&gt;
+With this parameter, only the test named [string] is executed.
+```
+Required?                    false
+Position?                    2
+Default value
+Accept pipeline input?       false
+Accept wildcard characters?  false
+```
+ 
+### -Iterations &lt;Int32&gt;
+Define the [int] number of cycles that the test(s) will be run.  
+Default is -1, i.e. infinitely (until CTRL-C is received).
+```
+Required?                    false
+Position?                    3
+Default value                -1
+Accept pipeline input?       false
+Accept wildcard characters?  false
+```
+ 
+### -ListTests &lt;SwitchParameter&gt;
+Switch to make the script print a list of available tests.
+No test(s) will actually be run.
+```
+Required?                    false
+Position?                    named
+Default value                False
+Accept pipeline input?       false
+Accept wildcard characters?  false
+```
+ 
 ### -TestInterval &lt;Int32&gt;
-Defines the [int] cycle time (in milliseconds) at which tests are repeated.
+Defines the [int] cycle time (in milliseconds) at which tests are repeated.  
 Default is 3000(ms), i.e. 3 seconds.  
 NOTE: in most setups, 3 (seconds) is the lowest usable value.
 ```
 Required?                    false
-Position?                    2
+Position?                    4
 Default value                3000
 Accept pipeline input?       false
 Accept wildcard characters?  false
@@ -69,29 +101,8 @@ Default is 2000(ms), i.e. 2 seconds.
 NOTE: in most setups, 2 (seconds) is the lowest viable value.
 ```
 Required?                    false
-Position?                    3
-Default value                2000
-Accept pipeline input?       false
-Accept wildcard characters?  false
-```
- 
-### -FocusTest &lt;String&gt;
-With this parameter only the Test named [string] is executed.
-Also, all of the tests output is being piped and made visible to the user.
-```
-Required?                    false
-Position?                    4
-Default value
-Accept pipeline input?       false
-Accept wildcard characters?  false
-```
- 
-### -Iterations &lt;Int32&gt;
-Define the [int] number of cycles that the test will run.
-```
-Required?                    false
 Position?                    5
-Default value                -1
+Default value                2000
 Accept pipeline input?       false
 Accept wildcard characters?  false
 ```
@@ -100,14 +111,16 @@ Accept wildcard characters?  false
 None. You can't pipe objects.
 
 ## OUTPUTS
-Only Text (as this is a command-lineline live monitoring tool).
+Only Text (as this is a command-line live monitoring tool).
 
 ## NOTES
-Author   : Kai Poggensee  
-Version  : 0.12 (2024-09-19) - Documentation cleanup
+Author  : Kai Poggensee  
+Version : 0.2 (2024-09-26) - PowerShell locale agnostic with better help
 
 ## EXAMPLES
 ### EXAMPLE 1
 ```powershell
 PS>.\mon-con.ps1 -BeepOnError -Display Warning -Timeout 2500 -Verbose
 ```
+
+

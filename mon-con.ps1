@@ -14,7 +14,7 @@
 
 	DEV<->LAN<->ROUTER<->INTERNET<->Ext.SERVER
 
-	IPv4 and IPv6 are tested concurrently if available.
+	IPv4 and IPv6 are tested concurrently, if available.
 
 	From your local system, all the way up the the mighty internet, it tests
 	different intermediate hops. These hops are automatically determined.
@@ -26,10 +26,10 @@
 	the cause for spurious connectivity problems.
 
 	Each test can either pass (green) or fail (red).  
-	Warnings (yellow) if a ping tests RTT is high or if a DNS TTL is 0.
+	Warnings in (yellow), e.g. if a ping tests RTT is high or DNS TTL is 0.
 
 	.PARAMETER BeepOnError
-	Switch that enables acoustic feedback (beeping) for every test that failed.
+	Switch to enable acoustic feedback (beeping) for every test that failed.
 
 	.PARAMETER Display
 	Define [enum] how to scroll the output and which information to retain.  
@@ -39,8 +39,7 @@
 	Note: Output will also retain margin, i.e. one line before/after an event.
 
 	.PARAMETER FocusTest
-	With this [string] parameter only the Test requested is executed.
-	Also, all of the tests output is being piped and made visible to the user.
+	With this parameter, only the test named [string] is executed.
 
 	.PARAMETER Iterations
 	Define the [int] number of cycles that the test(s) will be run.  
@@ -64,14 +63,14 @@
 	None. You can't pipe objects.
 
 	.OUTPUTS
-	Only Text (as this is a command-lineline live monitoring tool).
+	Only Text (as this is a command-line live monitoring tool).
 
 	.EXAMPLE
 	PS> .\mon-con.ps1 -BeepOnError -Display Warning -Timeout 2500 -Verbose
 
 	.NOTES
 	Author  : Kai Poggensee  
-	Version : 0.2 (2024-09-22) - PowerShell language agnostic and better help
+	Version : 0.2 (2024-09-26) - PowerShell locale agnostic with better help
 #>
 
 ##############################################################################
