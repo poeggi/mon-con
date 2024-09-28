@@ -366,7 +366,7 @@ function getNetworkConfig {
 function throwOnCtrlC {
 	while ([Console]::KeyAvailable) {
 		$readKey = [Console]::ReadKey($True)
-		if ($readKey.Modifiers -eq "Control" -and $readKey.Key -eq "C"){				
+		if (($readKey.Modifiers -eq "Control") -and ($readKey.Key -eq "C")) {				
 			# throw exception to be handled
 			throw
 		}
@@ -579,12 +579,15 @@ $PingTestCode = {
 	}
 	
 	if ($?) {
-		if ("$output" -match '\(0\%') { # match the 0 packets at 0% loss in a language agnostic way
+		
+		(($output | Select-String -Pattern "=.*ms$" -Raw) -match "=\s?([0-9]*)ms$") > $null
+		$RTT=[int]$matches[1]
+		
+		# match the 0 packets at 0% loss in a language agnostic way, also check if we have an RTT
+		if (("$output" -match '\(0\%') -and ($RTT -gt 0))  {
 			$success = $True
 
-			(($output | Select-String -Pattern "=.*ms$" -Raw) -match "=\s?([0-9]*)ms$") > $null
-			$RTT=[int]$matches[1]
-			# Assumption: RTT can always be 100ms, but even long distance normally not exceeds 500ms
+			# Formulae assumption: RTT can be 100ms+, even for LAN, but even WAN shall not exceed 500ms
 			if ($RTT -ge $(100 + ($OPT_MAXHOPS * 2))) {
 				Write-Output "Warning: Ping RTT (round trip time) abnormally high: ${RTT}ms."
 				$warn = $True
