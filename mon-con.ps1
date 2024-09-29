@@ -301,8 +301,8 @@ function getAUXTestIPs {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$IPConfig.AUXAddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$AUX_DNS_NAME." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
-		$IPConfig.AUXAddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$AUX_DNS_NAME." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
+		$IPConfig.AUXAddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
+		$IPConfig.AUXAddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
 	} catch {
 		Write-Warning "Could not get IPs of AUX, omitting"
 		$IPConfig.AUXAddrIPv4 = "n/a"
@@ -354,7 +354,7 @@ function getNetworkConfig {
 	getLanDnsServerName $IPConfig
 	getLanDnsServerIPs $IPConfig
 
-	if (![string]::IsNullOrEmpty($AUX_DNS_NAME)) {
+	if (![string]::IsNullOrEmpty($AUX_TEST_HOST)) {
 		# determine own AUX addresses
 		getAUXTestIPs $IPConfig
 	}
