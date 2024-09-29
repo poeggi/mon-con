@@ -248,7 +248,7 @@ function getLanDnsServerName {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$LocalDnsAutoDetected = echo "exit" | nslookup.exe | Select-String -Pattern "^.*erver:.*" -CaseSensitive -Raw | Select-String -Pattern "[.:a-z0-9]*$" | % { $_.Matches } | % { $_.Value }		
+		$LocalDnsAutoDetected = (echo "exit" | nslookup.exe | Select-String -Pattern "^.*erver:.*" -CaseSensitive -Raw | Select-String -Pattern "[.:a-z0-9]*$" | % { $_.Matches } | % { $_.Value })		
 		$IPConfig.LanDnsServerName = $LocalDNSAutoDetected
 	} catch {
 		Write-Error "Local DNS server could not be determined."
@@ -817,7 +817,7 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	# NOTE: dedicated DNS names, entries crafted to have a very low TTL 
 	#	   as to not measure cached -> but ensure external requests
 	$SHORT_TTL_DNSTEST_HOST = "${DNSTestDynPrefix}.${DNS_TEST_DOMAIN}"
-
+	
 	# signal that we start
 	if ($CyclesWithFail -gt 1) {
 		Write-Host ((' ' * $stuffChars) + "#${Cycle}") -NoNewLine -ForeGroundColor Red
@@ -909,8 +909,13 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 		clearCurrentConsoleLine
 	}
 		
-	# TTL of the record is 30(s), rotate at TTL expiration to test DNS caching
-	if ($DNSTestDynPrefix -ge $([Math]::Floor($(30000/$TestInterval-1)))) { $DNSTestDynPrefix = 0 } else { $DNSTestDynPrefix++ }
+	# TTL of the record is 30(s), rotate same speed to test DNS caching
+	# as a result of this, the TTL received should never be <30s
+	if ($DNSTestDynPrefix -ge $([Math]::Ceiling($((30000/$TestInterval)-1)))) {
+		$DNSTestDynPrefix = 0
+	} else {
+		$DNSTestDynPrefix++
+	}
 	
 }} catch {
 	Write-Debug "Entering catch statement after exception"
