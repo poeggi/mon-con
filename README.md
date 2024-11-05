@@ -115,7 +115,7 @@ Only Text (as this is a command-line live monitoring tool).
 
 ## NOTES
 Author  : Kai Poggensee  
-Version : 0.2 (2024-09-26) - PowerShell locale agnostic with better help
+Version : 0.3 (2024-11-05) - Add WWAN / direct P2P connection support
 
 ## EXAMPLES
 ### EXAMPLE 1
