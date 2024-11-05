@@ -70,7 +70,7 @@
 
 	.NOTES
 	Author  : Kai Poggensee  
-	Version : 0.2 (2024-09-26) - PowerShell locale agnostic with better help
+	Version : 0.3 (2024-11-05) - Add WWAN / direct P2P connection support
 #>
 
 ##############################################################################
@@ -109,15 +109,15 @@ param(
 $PUBLIC_DNS_SERVER_NAME = "one.one.one.one"
 
 # The Domain name (prefixed with a dynamic counter) to use for testing DNS
-$DNS_TEST_DOMAIN = "lowttl.poggensee.it" # TTL 30(s) for DNS testing
+$DNS_TEST_DOMAIN = "lowttl.poggensee.it" # TTL 30(s) records for DNS testing
 
-# Define the public host to use for external testing.
+# Define the public host to use for external (ping) testing.
 # NOTE: feasible choice is a host reachable always and everywhere, with HA
 # Choose two hosts with one IP ODD the other EVEN, to test routing based LB
 $EXT_TEST_HOST1 = "one.one.one.one"
 $EXT_TEST_HOST2 = "security.cloudflare-dns.com"
 
-# URLs where the script can query the hosts public IP
+# URLs where we can query the public IP of the host running this script
 $PUBLIC_IPv4_URL = "https://www4.poggensee.it/ip"
 $PUBLIC_IPv6_URL = "https://www6.poggensee.it/ip"
 
@@ -139,6 +139,8 @@ class IPConfigClass
 {
 	[ipaddress]$OwnLanIPv4
 	[ipaddress]$OwnLanIPv6
+	[ipaddress]$OwnPubIPv4
+	[ipaddress]$OwnPubIPv6
 	[ipaddress]$DefaultRouterIPv4
 	[ipaddress]$DefaultRouterIPv6
 	[string]$PublicDnsServerName
@@ -195,12 +197,41 @@ class TestCollectionClass
 
 New-Variable -Option Constant -Name TIMEOUT_S -Value $($Timeout / 1000)
 New-Variable -Option Constant -Name SLEEP_WAIT_QUANTUM -Value 100
-New-Variable -Option Constant -Name IPv4_REGEXP -Value '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+
+New-Variable -Option Constant -Name IPv4_REGEXP -Value '^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+New-Variable -Option Constant -Name IPv6_REGEXP -Value '^([0-9a-f]{0,4}|\:)*\:([0-9a-f]{0,4}|\:)*$'
 
 
 #
 # functions
 #
+
+function getDefaultRouteInterface {
+	param (
+		[Parameter(mandatory=$True)]
+		$Proto
+	)
+	$InterfaceName = ""
+	$Interface = ""
+	$Metric = 1000
+	
+	$Interfaces = (Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.IPEnabled})
+	foreach ($IF in $Interfaces) {
+		$SubInterfaces = (Get-NetIPInterface -InterfaceIndex $IF.InterfaceIndex)
+		foreach ($SubIF in $SubInterfaces) {
+			if ($SubIF.AddressFamily -eq $Proto) {
+				if ($SubIF.InterfaceMetric -le $Metric) {
+					$InterfaceName = $SubIF.ifAlias
+					$Interface = $IF
+					$Metric = $SubIF.InterfaceMetric
+				}
+			}
+		}
+	}
+	Write-Verbose "Determined $($Proto) default route interface: '$InterfaceName' (#$($Interface.InterfaceIndex)), Metric: $Metric"
+	
+	return $Interface
+}
 
 function getLocalHostIPs {
 	param (
@@ -208,11 +239,20 @@ function getLocalHostIPs {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		# NOTE: methodology of determining the address differs for IPv4 and v6
-		#       for IPv6, use the fact that a public IPv6 assigned
-		#       for IPv4 one needs to use pull it from the interface settings
-		$IPConfig.OwnLanIPv4 = (hostname | Resolve-DnsName -QuickTimeout -type A -DnsOnly | Where-Object -Property section -eq "Answer" | select-object -first 1 | select -ExpandProperty IPAddress)
-		$IPConfig.OwnLanIPv6 = (Invoke-WebRequest $PUBLIC_IPv6_URL -ConnectionTimeoutSeconds 2 -OperationTimeoutSeconds 2).Content
+		$IPv4Interface = getDefaultRouteInterface('IPv4')
+		$IPs = $IPv4Interface.IPAddress
+		foreach ($IP in $IPs) {
+			if ($IP -match $IPv4_REGEXP) {
+				$IPConfig.OwnLanIPv4 = $IP
+			}
+		}
+		$IPv6Interface = getDefaultRouteInterface('IPv6')
+		$IPs = $IPv6Interface.IPAddress
+		foreach ($IP in $IPs) {
+			if ($IP -match $IPv6_REGEXP) {
+				$IPConfig.OwnLanIPv6 = $IP
+			}
+		}
 	} catch {
 		Write-Warning "Own local IPs could not be determined. Falling back to localhost addresses."
 		$IPConfig.OwnLanIPv4 = "127.0.0.1"
@@ -223,23 +263,50 @@ function getLocalHostIPs {
 	}
 }
 
+function getHostPublicIPs {
+	param (
+		[Parameter(mandatory=$True)]
+		[IPConfigClass]$IPConfig
+	)
+	try {
+		# For IPv4 and IPv6 determine with the help of external server
+		$IPConfig.OwnPubIPv4 = (Invoke-WebRequest $PUBLIC_IPv4_URL -ConnectionTimeoutSeconds 4 -OperationTimeoutSeconds 4).Content
+		$IPConfig.OwnPubIPv6 = (Invoke-WebRequest $PUBLIC_IPv6_URL -ConnectionTimeoutSeconds 4 -OperationTimeoutSeconds 4).Content
+	} catch {
+		Write-Warning "Own public IPs could not be determined."
+		# TODO: consider to fail gracefully?
+	} finally {
+		Write-Host "Hosts public IPv4 address:" $IPConfig.OwnPubIPv4
+		Write-Host "Hosts public IPv6 address:" $IPConfig.OwnPubIPv6
+	}
+}
+
 function getDefaultRouterIPs {
 	param (
 		[Parameter(mandatory=$True)]
 		[IPConfigClass]$IPConfig
 	)
-	$gateways = (Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.IPEnabled}).DefaultIPGateway
-	foreach ($ip in $gateways) {
-		if ($ip -match $IPv4_REGEXP)
+	$IPv4Interface = getDefaultRouteInterface('IPv4')
+	$IPv6Interface = getDefaultRouteInterface('IPv6')
+	
+	$IPv4Gateways = (Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.InterfaceIndex -eq $IPv4Interface.InterfaceIndex}| ?{$_.IPEnabled}).DefaultIPGateway
+	foreach ($IPv4Gateway in $IPv4Gateways) {
+		if ($IPv4Gateway -match $IPv4_REGEXP)
 		{
-			$IPConfig.DefaultRouterIPv4 = $ip	
-		} else {
-			$IPConfig.DefaultRouterIPv6 = $ip
+			$IPConfig.DefaultRouterIPv4 = $IPv4Gateway
 		}
 	}
+
+	$IPv6Gateways = (Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.InterfaceIndex -eq $IPv6Interface.InterfaceIndex}| ?{$_.IPEnabled}).DefaultIPGateway
+	foreach ($IPv6Gateway in $IPv6Gateways) {
+		if ($IPv6Gateway -match $IPv6_REGEXP)
+		{
+			$IPConfig.DefaultRouterIPv6 = $IPv6Gateway
+		}
+	}
+	
 	Write-Host "Default IPv4 router:" $IPConfig.DefaultRouterIPv4
 	Write-Host "Default IPv6 router:" $IPConfig.DefaultRouterIPv6
-
 }
 
 function getLanDnsServerName {
@@ -276,15 +343,17 @@ function getPublicDnsServerIPs {
 	}
 }
 
-
 function getLanDnsServerIPs {
 	param (
 		[Parameter(mandatory=$True)]
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$IPConfig.LanDnsServerIPv4 = Resolve-DnsName -QuickTimeout -type A $IPConfig.LanDnsServerName |  Where-Object -Property section -eq "Answer" | Select-Object -first 1 | select -ExpandProperty IPAddress
-		$IPConfig.LanDnsServerIPv6 = Resolve-DnsName -QuickTimeout -type AAAA $IPConfig.LanDnsServerName | Where-Object -Property section -eq "Answer" | Select-Object -first 1 | select -ExpandProperty IPAddress
+		$IPv4Interface = getDefaultRouteInterface('IPv4')
+		$IPv6Interface = getDefaultRouteInterface('IPv6')
+
+		$IPConfig.LanDnsServerIPv4 = (get-DnsClientServerAddress -InterfaceIndex $IPv4Interface.InterfaceIndex | Where-Object -Property AddressFamily -eq "2").ServerAddresses[0]
+		$IPConfig.LanDnsServerIPv6 = (get-DnsClientServerAddress -InterfaceIndex $IPv6Interface.InterfaceIndex | Where-Object -Property AddressFamily -eq "23").ServerAddresses[0]
 	} catch {
 		Write-Warning "LAN DNS server not resolved. Falling back to DNS server name."
 		$IPConfig.LanDnsServerIPv4 = $IPConfig.LanDnsServerName
@@ -345,6 +414,9 @@ function getNetworkConfig {
 	
 	# determine local IP addresses
 	getLocalHostIPs $IPConfig
+	
+	# determine hosts public IP adresses
+	getHostPublicIPs $IPConfig
 	
 	# determine LAN default routers
 	getDefaultRouterIPs $IPConfig
@@ -520,8 +592,13 @@ $DNSTestCode = {
 		[Parameter(Position=3,mandatory=$True)]
 		[string]$TARGET
 	)
-	# NOTE: appending a "." to the TARGET to make FQDN handed over and resolved
-	$TargetFQDN = "${TARGET}."
+	# NOTE: appending a "." to the TARGET if needed, to resolve only FQDN
+	if ($TARGET -match "\.$") {
+		$TargetFQDN = $TARGET
+	} else {
+		$TargetFQDN = "${TARGET}."
+	}
+	
 	Write-Output "Trying to Resolve $($DNS_RECORD_TYPE) of $($TargetFQDN)"
 	if ($OPT_NOREC) {
 		$output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -NoRecursion -QuickTimeout -Name $TargetFQDN	2> $error
@@ -668,17 +745,17 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D4-INT';
-		descr='DNS resolve an on-site hosts "A" record (no recursion), via IPv4';
+		descr='DNS resolve from near end DNS a "SOA" record (no recursion), via IPv4';
 		code=$DNSTestCode;
-		args=('A', $IPConfig.LanDnsServerIPv4.IPAddressToString, [bool]1, $IPConfig.LanDnsServerName);
+		args=('SOA', $IPConfig.LanDnsServerIPv4.IPAddressToString, [bool]1, '.');
 		dynargvar='';
 		enabled=$True;
 	}
 	[TestClass]@{
 		name='D6-INT';
-		descr='DNS resolve on-site hosts "AAAA" record (no recursion), via IPv6';
+		descr='DNS resolve from near end DNS a "SOA" record (no recursion), via IPv6';
 		code=$DNSTestCode;
-		args=('AAAA', $IPConfig.LanDnsServerIPv6.IPAddressToString, [bool]1, $IPConfig.LanDnsServerName);
+		args=('SOA', $IPConfig.LanDnsServerIPv6.IPAddressToString, [bool]1, '.');
 		dynargvar='';
 		enabled=$True;
 	}
