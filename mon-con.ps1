@@ -137,18 +137,18 @@ if (Test-Path(".\.mon-con.conf")) {
 
 class IPConfigClass
 {
-	[ipaddress]$OwnLanIPv4
-	[ipaddress]$OwnLanIPv6
+	[ipaddress]$OwnIPv4
+	[ipaddress]$OwnIPv6
 	[ipaddress]$OwnPubIPv4
 	[ipaddress]$OwnPubIPv6
 	[ipaddress]$DefaultRouterIPv4
 	[ipaddress]$DefaultRouterIPv6
 	[string]$PublicDnsServerName
-	[string]$LanDnsServerName
+	[string]$LocalDnsServerName
 	[ipaddress]$PublicDnsServerIPv4
 	[ipaddress]$PublicDnsServerIPv6
-	[ipaddress]$LanDnsServerIPv4
-	[ipaddress]$LanDnsServerIPv6
+	[ipaddress]$LocalDnsServerIPv4
+	[ipaddress]$LocalDnsServerIPv6
 	[ipaddress]$AUXAddrIPv4
 	[ipaddress]$AUXAddrIPv6
 	[ipaddress]$PublicTestHost1AddrIPv4
@@ -218,6 +218,13 @@ function getDefaultRouteInterface {
 	$Interfaces = (Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.IPEnabled})
 	foreach ($IF in $Interfaces) {
 		$SubInterfaces = (Get-NetIPInterface -InterfaceIndex $IF.InterfaceIndex)
+
+		if ($IF.ServiceName -eq "VBoxNetAdp") {
+			Write-Debug "Skipping virtual adapter, ignoring all sub-interfaces of '$($SubInterfaces[0].ifAlias)'"
+			continue
+		}
+
+		Write-Debug "Checking sub-interfaces of adapter '$($SubInterfaces[0].ifAlias)'"
 		foreach ($SubIF in $SubInterfaces) {
 			if ($SubIF.AddressFamily -eq $Proto) {
 				if ($SubIF.InterfaceMetric -le $Metric) {
@@ -243,23 +250,23 @@ function getLocalHostIPs {
 		$IPs = $IPv4Interface.IPAddress
 		foreach ($IP in $IPs) {
 			if ($IP -match $IPv4_REGEXP) {
-				$IPConfig.OwnLanIPv4 = $IP
+				$IPConfig.OwnIPv4 = $IP
 			}
 		}
 		$IPv6Interface = getDefaultRouteInterface('IPv6')
 		$IPs = $IPv6Interface.IPAddress
 		foreach ($IP in $IPs) {
 			if ($IP -match $IPv6_REGEXP) {
-				$IPConfig.OwnLanIPv6 = $IP
+				$IPConfig.OwnIPv6 = $IP
 			}
 		}
 	} catch {
 		Write-Warning "Own local IPs could not be determined. Falling back to localhost addresses."
-		$IPConfig.OwnLanIPv4 = "127.0.0.1"
-		$IPConfig.OwnLanIPv6 = "::1"
+		$IPConfig.OwnIPv4 = "127.0.0.1"
+		$IPConfig.OwnIPv6 = "::1"
 	} finally {
-		Write-Host "Local (Own) IPv4 address:" $IPConfig.OwnLanIPv4
-		Write-Host "Local (Own) IPv6 address:" $IPConfig.OwnLanIPv6
+		Write-Host "Local (Own) IPv4 address:" $IPConfig.OwnIPv4
+		Write-Host "Local (Own) IPv6 address:" $IPConfig.OwnIPv6
 	}
 }
 
@@ -309,19 +316,19 @@ function getDefaultRouterIPs {
 	Write-Host "Default IPv6 router:" $IPConfig.DefaultRouterIPv6
 }
 
-function getLanDnsServerName {
+function getLocalDnsServerName {
 	param (
 		[Parameter(mandatory=$True)]
 		[IPConfigClass]$IPConfig
 	)
 	try {
 		$LocalDnsAutoDetected = (echo "exit" | nslookup.exe | Select-String -Pattern "^.*erver:.*" -CaseSensitive -Raw | Select-String -Pattern "[.:a-z0-9]*$" | % { $_.Matches } | % { $_.Value })		
-		$IPConfig.LanDnsServerName = $LocalDNSAutoDetected
+		$IPConfig.LocalDnsServerName = $LocalDNSAutoDetected
 	} catch {
-		Write-Error "Local DNS server could not be determined."
+		Write-Error "Local (IF configured) DNS server could not be determined."
 		exit
 	} finally {
-		Write-Host "Local DNS server name:" $IPConfig.LanDnsServerName
+		Write-Host "Local  (IF configured) DNS server name:" $IPConfig.LocalDnsServerName
 	}
 }
 
@@ -338,12 +345,12 @@ function getPublicDnsServerIPs {
 		$IPConfig.PublicDnsServerIPv4 = $PUBLIC_DNS_SERVER_NAME
 		$IPConfig.PublicDnsServerIPv6 = $PUBLIC_DNS_SERVER_NAME
 	} finally {
-		Write-Host "Public DNS IPv4 address:" $IPConfig.PublicDnsServerIPv4
-		Write-Host "Public DNS IPv6 address:" $IPConfig.PublicDnsServerIPv6
+		Write-Host "Public DNS server IPv4 address:" $IPConfig.PublicDnsServerIPv4
+		Write-Host "Public DNS server IPv6 address:" $IPConfig.PublicDnsServerIPv6
 	}
 }
 
-function getLanDnsServerIPs {
+function getLocalDnsServerIPs {
 	param (
 		[Parameter(mandatory=$True)]
 		[IPConfigClass]$IPConfig
@@ -352,15 +359,15 @@ function getLanDnsServerIPs {
 		$IPv4Interface = getDefaultRouteInterface('IPv4')
 		$IPv6Interface = getDefaultRouteInterface('IPv6')
 
-		$IPConfig.LanDnsServerIPv4 = (get-DnsClientServerAddress -InterfaceIndex $IPv4Interface.InterfaceIndex | Where-Object -Property AddressFamily -eq "2").ServerAddresses[0]
-		$IPConfig.LanDnsServerIPv6 = (get-DnsClientServerAddress -InterfaceIndex $IPv6Interface.InterfaceIndex | Where-Object -Property AddressFamily -eq "23").ServerAddresses[0]
+		$IPConfig.LocalDnsServerIPv4 = (get-DnsClientServerAddress -InterfaceIndex $IPv4Interface.InterfaceIndex | Where-Object -Property AddressFamily -eq "2").ServerAddresses[0]
+		$IPConfig.LocalDnsServerIPv6 = (get-DnsClientServerAddress -InterfaceIndex $IPv6Interface.InterfaceIndex | Where-Object -Property AddressFamily -eq "23").ServerAddresses[0]
 	} catch {
-		Write-Warning "LAN DNS server not resolved. Falling back to DNS server name."
-		$IPConfig.LanDnsServerIPv4 = $IPConfig.LanDnsServerName
-		$IPConfig.LanDnsServerIPv6 = $IPConfig.LanDnsServerName
+		Write-Warning "Local (IF config) DNS server not resolved. Falling back to DNS server name."
+		$IPConfig.LocalDnsServerIPv4 = $IPConfig.LocalDnsServerName
+		$IPConfig.LocalDnsServerIPv6 = $IPConfig.LocalDnsServerName
 	} finally {
-		Write-Host "LAN DNS IPv4 address:" $IPConfig.LanDnsServerIPv4
-		Write-Host "LAN DNS IPv6 address:" $IPConfig.LanDnsServerIPv6
+		Write-Host "Local (IF configured) DNS server IPv4 address:" $IPConfig.LocalDnsServerIPv4
+		Write-Host "Local (IF configured) DNS server IPv6 address:" $IPConfig.LocalDnsServerIPv6
 	}
 }
 
@@ -418,13 +425,13 @@ function getNetworkConfig {
 	# determine hosts public IP adresses
 	getHostPublicIPs $IPConfig
 	
-	# determine LAN default routers
+	# determine local default routers
 	getDefaultRouterIPs $IPConfig
 	
 	# determine DNS
 	getPublicDnsServerIPs $IPConfig
-	getLanDnsServerName $IPConfig
-	getLanDnsServerIPs $IPConfig
+	getLocalDnsServerName $IPConfig
+	getLocalDnsServerIPs $IPConfig
 
 	if (![string]::IsNullOrEmpty($AUX_TEST_HOST)) {
 		# determine own AUX addresses
@@ -656,15 +663,18 @@ $PingTestCode = {
 	}
 	
 	if ($?) {
+		(($output | Select-String -Pattern "[=<].*ms$" -Raw) -match "[=<]\s?([0-9]{1,5})ms$") > $null
+		if ([bool]$matches[1]) {
+			$RTT=[int]$matches[1]
+		} else {
+			$RTT=-1
+		}
 		
-		(($output | Select-String -Pattern "=.*ms$" -Raw) -match "=\s?([0-9]*)ms$") > $null
-		$RTT=[int]$matches[1]
-		
-		# match the 0 packets at 0% loss in a language agnostic way, also check if we have an RTT
-		if (("$output" -match '\(0\%') -and ($RTT -gt 0))  {
+		# match 0 packets in '(0% loss', in a language agnostic way, also check if we have a RTT
+		if (("$output" -match '\(0\%') -and ($RTT -ge 0)) {
 			$success = $True
 
-			# Formulae assumption: RTT can be 100ms+, even for LAN, but even WAN shall not exceed 500ms
+			# Assumption: RTT can be 100ms+, even for LAN, but even WAN shall not exceed 500ms
 			if ($RTT -ge $(100 + ($OPT_MAXHOPS * 2))) {
 				Write-Output "Warning: Ping RTT (round trip time) abnormally high: ${RTT}ms."
 				$warn = $True
@@ -674,7 +684,7 @@ $PingTestCode = {
 			$success = $False
 		}
 	} else {
-		Write-Output "Failure: Ping returned with an error, details from command (if any) below."
+		Write-Output "Failure: Ping command returned an error, details from command (if any) below."
 		Write-Output "$error"
 		$success = $False
 	}
@@ -729,17 +739,17 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D4-EXT';
-		descr='DNS resolve an external "A" record via the local (LAN) DNS server, using IPv4';
+		descr='DNS resolve an external "A" record via the local (IF config) DNS server, using IPv4';
 		code=$DNSTestCode;
-		args=('A', $IPConfig.LanDnsServerIPv4.IPAddressToString, [bool]0);
+		args=('A', $IPConfig.LocalDnsServerIPv4.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
 		enabled=$True
 	}
 	[TestClass]@{
 		name='D6-EXT';
-		descr='DNS resolve an ext. "AAAA" record via the local (LAN) DNS server, using IPv6';
+		descr='DNS resolve an ext. "AAAA" record via the local (IF config) DNS server, using IPv6';
 		code=$DNSTestCode;
-		args=('AAAA', $IPConfig.LanDnsServerIPv6.IPAddressToString, [bool]0);
+		args=('AAAA', $IPConfig.LocalDnsServerIPv6.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
 		enabled=$True;
 	}
@@ -747,7 +757,7 @@ getNetworkConfig $IPConfig
 		name='D4-INT';
 		descr='DNS resolve from near end DNS a "SOA" record (no recursion), via IPv4';
 		code=$DNSTestCode;
-		args=('SOA', $IPConfig.LanDnsServerIPv4.IPAddressToString, [bool]1, '.');
+		args=('SOA', $IPConfig.LocalDnsServerIPv4.IPAddressToString, [bool]1, '.');
 		dynargvar='';
 		enabled=$True;
 	}
@@ -755,7 +765,7 @@ getNetworkConfig $IPConfig
 		name='D6-INT';
 		descr='DNS resolve from near end DNS a "SOA" record (no recursion), via IPv6';
 		code=$DNSTestCode;
-		args=('SOA', $IPConfig.LanDnsServerIPv6.IPAddressToString, [bool]1, '.');
+		args=('SOA', $IPConfig.LocalDnsServerIPv6.IPAddressToString, [bool]1, '.');
 		dynargvar='';
 		enabled=$True;
 	}
@@ -804,19 +814,18 @@ getNetworkConfig $IPConfig
 		enabled=$False;
 	}
 	[TestClass]@{
-		name='P4-LAN';
-		descr='Ping a host on the LAN via IPv4';
+		name='P4-LIN';
+		descr='Ping a host on the same link (local) via IPv4';
 		code=$PingTestCode;
 		args=('4', $IPConfig.DefaultRouterIPv4, 1, $Timeout);
 		dynargvar='';
 		enabled=$True;
 	}
 	[TestClass]@{
-		name='P6-LAN';
-		descr='Ping a host on the LAN via IPv6';
+		name='P6-LIN';
+		descr='Ping a host on the same link (local) via IPv6';
 		code=$PingTestCode;
-		# NOTE: MUST NOT USE link local address due to Windows issue
-		args=('6', $IPConfig.LanDnsServerIPv6, 1, $Timeout);
+		args=('6', $IPConfig.DefaultRouterIPv6, 1, $Timeout);
 		dynargvar='';
 		enabled=$True;
 	}
@@ -824,7 +833,7 @@ getNetworkConfig $IPConfig
 		name='P4-LOC';
 		descr='Ping this systems assinged local interface IPv4 address';
 		code=$PingTestCode;
-		args=('4', $IPConfig.OwnLanIPv4, 1, $Timeout);
+		args=('4', $IPConfig.OwnIPv4, 1, $Timeout);
 		dynargvar='';
 		enabled=$False;
 	}
@@ -832,7 +841,7 @@ getNetworkConfig $IPConfig
 		name='P6-LOC';
 		descr='Ping this systems assinged local interface IPv6 address';
 		code=$PingTestCode;
-		args=('6', $IPConfig.OwnLanIPv6, 1, $Timeout);
+		args=('6', $IPConfig.OwnIPv6, 1, $Timeout);
 		dynargvar='';
 		enabled=$False;
 	}
