@@ -70,7 +70,7 @@
 
 	.NOTES
 	Author  : Kai Poggensee  
-	Version : 0.3 (2024-11-05) - Add WWAN / direct P2P connection support
+	Version : 0.31 (2025-02-19) - skip interfaces without default GW (e.g. tunnels)
 #>
 
 ##############################################################################
@@ -220,7 +220,10 @@ function getDefaultRouteInterface {
 		$SubInterfaces = (Get-NetIPInterface -InterfaceIndex $IF.InterfaceIndex)
 
 		if ($IF.ServiceName -eq "VBoxNetAdp") {
-			Write-Debug "Skipping virtual adapter, ignoring all sub-interfaces of '$($SubInterfaces[0].ifAlias)'"
+			Write-Debug "Skipping VirtualBox adapter and all sub-interfaces of '$($SubInterfaces[0].ifAlias)'"
+			continue
+		} elseif (!$IF.DefaultIPGateway) {
+			Write-Debug "Skipping gateway-less adapter and all sub-interfaces of '$($SubInterfaces[0].ifAlias)'"
 			continue
 		}
 
