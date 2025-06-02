@@ -8,27 +8,28 @@ MON(itor)-CON(nection), test and monitor your internet connection.
 ```
 
 ## DESCRIPTION
-This powershell script does monitor a chain of interfaces / connections.
-It has been developed and tested on Win 11, requires at least Powershell 7.
+This Powershell script does monitor a chain of interfaces / connections.
+It has been developed and tested on Win 11, requires min. Powershell v7.
 
 LOCAL-SYSTEM(PC)<->LAN<->ROUTER/GATEWAY<->INTERNET-UPLINK<->EXT.SERVER(S)
 
 IPv4 and IPv6 are tested concurrently, assuming both are available.
 
 From your local system, all the way up the the mighty internet, it tests
-different intermediate hops and services. Theey are automatically determined
-and/or preconfigured.
+different intermediate hops and services. They are automatically determined
+and/or pre-configured in the script, can be overridden in a config file.
 These tests should aid debugging an internet connection and help identify
 the cause for spurious connectivity problems.
 
-The script runs in the foreground, with cyclic information on the console.
+The script runs in the foreground, cyclic updates printed to the console.
 
 There is a number of ping and DNS tests pre-defined and enabled.
 Custom tests can be added easily.
 
 Each test can either pass (green) or fail (red).  
 Warnings (yellow) will be emitted in case of unusual or slow responses
-(e.g. a ping tests RTT is high or DNS TTL is 0).
+(e.g. a ping tests RTT is high or DNS TTL is 0).  
+Timeouts are marked (blue).
 
 ## PARAMETERS
 ### -BeepOnError &lt;SwitchParameter&gt;
@@ -119,7 +120,7 @@ Only Text (as this is a command-line live monitoring tool).
 
 ## NOTES
 Author  : Kai Poggensee  
-Version : 0.3 (2024-11-05) - Add WWAN / direct P2P connection support
+Version : 0.32 (2025-06-02) - adapt int. DNS test to avoid rate limits 
 
 ## EXAMPLES
 ### EXAMPLE 1

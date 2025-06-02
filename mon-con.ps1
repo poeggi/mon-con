@@ -11,26 +11,27 @@
 
 	.DESCRIPTION
 	This powershell script does monitor a chain of interfaces / connections.
-	It has been developed and tested on Win 11, requires at least Powershell 7.
+	It has been developed and tested on Win 11, requires min. Powershell v7.
 
 	LOCAL-SYSTEM(PC)<->LAN<->ROUTER/GATEWAY<->INTERNET-UPLINK<->EXT.SERVER(S)
 
 	IPv4 and IPv6 are tested concurrently, assuming both are available.
 
 	From your local system, all the way up the the mighty internet, it tests
-	different intermediate hops and services. Theey are automatically determined
-	and/or preconfigured.
+	different intermediate hops and services. They are automatically determined
+	and/or pre-configured in the script, can be overridden in a config file.
 	These tests should aid debugging an internet connection and help identify
 	the cause for spurious connectivity problems.
 
-	The script runs in the foreground, with cyclic information on the console.
+	The script runs in the foreground, cyclic updates printed to the console.
 
 	There is a number of ping and DNS tests pre-defined and enabled.
 	Custom tests can be added easily.
 
 	Each test can either pass (green) or fail (red).  
 	Warnings (yellow) will be emitted in case of unusual or slow responses
-	(e.g. a ping tests RTT is high or DNS TTL is 0).
+	(e.g. a ping tests RTT is high or DNS TTL is 0).  
+	Timeouts are marked (blue).
 
 	.PARAMETER BeepOnError
 	Switch to enable acoustic feedback (beeping) for every test that failed.
@@ -74,7 +75,7 @@
 
 	.NOTES
 	Author  : Kai Poggensee  
-	Version : 0.31 (2025-02-19) - skip interfaces without default GW (e.g. tunnels)
+	Version : 0.32 (2025-06-02) - adapt int. DNS test to avoid rate limits 
 #>
 
 ##############################################################################
@@ -607,12 +608,12 @@ $DNSTestCode = {
 		[string]$TARGET
 	)
 	# NOTE: appending a "." to the TARGET if needed, to resolve only FQDN
-	if ($TARGET -match "\.$") {
+	if (($DNS_RECORD_TYPE -eq "PTR") -or ($TARGET -match "\.$")) {
 		$TargetFQDN = $TARGET
 	} else {
 		$TargetFQDN = "${TARGET}."
 	}
-	
+
 	Write-Output "Trying to Resolve $($DNS_RECORD_TYPE) of $($TargetFQDN)"
 	if ($OPT_NOREC) {
 		$output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -NoRecursion -QuickTimeout -Name $TargetFQDN	2> $error
@@ -621,7 +622,7 @@ $DNSTestCode = {
 	}
 
 	if ($?) {
-		$result = $output | Where-Object -Property name -eq "$TARGET" | Where-Object -Property type -eq "$DNS_RECORD_TYPE" | Where-Object -Property section -eq "Answer"
+		$result = $output | Where-Object -Property type -eq "$DNS_RECORD_TYPE" | Where-Object -Property section -eq "Answer"
 		if ($result) {
 			$success = $True
 			if ($result.TTL -eq 0) {
@@ -762,17 +763,17 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D4-INT';
-		descr='DNS resolve from near end DNS a "SOA" record (no recursion), via IPv4';
+		descr='DNS resolve from near end DNS its own "PTR" record (no recursion), via IPv4';
 		code=$DNSTestCode;
-		args=('SOA', $IPConfig.LocalDnsServerIPv4.IPAddressToString, [bool]1, '.');
+		args=('PTR', $IPConfig.LocalDnsServerIPv4.IPAddressToString, [bool]1, $IPConfig.LocalDnsServerIPv4.IPAddressToString);
 		dynargvar='';
 		enabled=$True;
 	}
 	[TestClass]@{
 		name='D6-INT';
-		descr='DNS resolve from near end DNS a "SOA" record (no recursion), via IPv6';
+		descr='DNS resolve from near end DNS its own "PTR" record (no recursion), via IPv6';
 		code=$DNSTestCode;
-		args=('SOA', $IPConfig.LocalDnsServerIPv6.IPAddressToString, [bool]1, '.');
+		args=('PTR', $IPConfig.LocalDnsServerIPv6.IPAddressToString, [bool]1, $IPConfig.LocalDnsServerIPv6.IPAddressToString);
 		dynargvar='';
 		enabled=$True;
 	}
