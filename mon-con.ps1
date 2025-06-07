@@ -336,7 +336,7 @@ function getLocalDnsServerName {
 		Write-Error "Local (IF configured) DNS server could not be determined."
 		exit
 	} finally {
-		Write-Host "Local  (IF configured) DNS server name:" $IPConfig.LocalDnsServerName
+		Write-Host "Local (IF configured) DNS server name:" $IPConfig.LocalDnsServerName
 	}
 }
 
@@ -346,8 +346,8 @@ function getPublicDnsServerIPs {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$IPConfig.PublicDnsServerIPv4 = Resolve-DnsName -QuickTimeout -type A $PUBLIC_DNS_SERVER_NAME |  Where-Object -Property section -eq "Answer" | Select-Object -first 1 | select -ExpandProperty IPAddress
-		$IPConfig.PublicDnsServerIPv6 = Resolve-DnsName -QuickTimeout -type AAAA $PUBLIC_DNS_SERVER_NAME | Where-Object -Property section -eq "Answer" | Select-Object -first 1 | select -ExpandProperty IPAddress
+		$IPConfig.PublicDnsServerIPv4 = Resolve-DnsName -QuickTimeout -type A "$PUBLIC_DNS_SERVER_NAME." |  Where-Object -Property Section -eq "Answer" |  Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -first 1
+		$IPConfig.PublicDnsServerIPv6 = Resolve-DnsName -QuickTimeout -type AAAA "$PUBLIC_DNS_SERVER_NAME." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" |  select -ExpandProperty IPAddress | Sort-Object | Select-Object -first 1
 	} catch {
 		Write-Warning "Public DNS server not resolved. Falling back to DNS server name."
 		$IPConfig.PublicDnsServerIPv4 = $PUBLIC_DNS_SERVER_NAME
@@ -385,8 +385,8 @@ function getAUXTestIPs {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$IPConfig.AUXAddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
-		$IPConfig.AUXAddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
+		$IPConfig.AUXAddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
+		$IPConfig.AUXAddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
 	} catch {
 		Write-Warning "Could not get IPs of AUX, omitting"
 		$IPConfig.AUXAddrIPv4 = "n/a"
@@ -403,10 +403,10 @@ function getPublicTestIPs {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$IPConfig.PublicTestHost1AddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$EXT_TEST_HOST1." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
-		$IPConfig.PublicTestHost1AddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$EXT_TEST_HOST1." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
-		$IPConfig.PublicTestHost2AddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$EXT_TEST_HOST2." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
-		$IPConfig.PublicTestHost2AddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$EXT_TEST_HOST2." | Where-Object -Property section -eq "Answer" | Select-Object -last 1 | select -ExpandProperty IPAddress
+		$IPConfig.PublicTestHost1AddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$EXT_TEST_HOST1." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
+		$IPConfig.PublicTestHost1AddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$EXT_TEST_HOST1." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
+		$IPConfig.PublicTestHost2AddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$EXT_TEST_HOST2." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
+		$IPConfig.PublicTestHost2AddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$EXT_TEST_HOST2." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
 	} catch {
 		Write-Warning "Could not resolve IPs of public test hosts, falling back to names."
 		$IPConfig.PublicTestHost1AddrIPv4 = $EXT_TEST_HOST1
@@ -622,7 +622,7 @@ $DNSTestCode = {
 	}
 
 	if ($?) {
-		$result = $output | Where-Object -Property type -eq "$DNS_RECORD_TYPE" | Where-Object -Property section -eq "Answer"
+		$result = $output | Where-Object -Property Type -eq "$DNS_RECORD_TYPE" | Where-Object -Property Section -eq "Answer"
 		if ($result) {
 			$success = $True
 			if ($result.TTL -eq 0) {
