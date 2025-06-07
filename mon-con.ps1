@@ -538,11 +538,11 @@ function jobsEvalThenPurge {
 
 			# output details of failure if verbose or always if debug
 			if ($VerbosePreference -and $OutputJob) {
-				Write-Host ""
+				Write-Verbose ""
 				$jobOutput | Write-Verbose
 			}
 			elseif ($DebugPreference) {
-				Write-Host ""
+				Write-Debug ""
 				$jobOutput | Write-Debug
 			}
 		}
@@ -972,9 +972,6 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 				$args = $test.args + $(get-variable -name $test.dynargvar -ValueOnly -ErrorAction SilentlyContinue)
 			}
 			$temp = Start-ThreadJob -ScriptBlock $test.code -ArgumentList $args -Name $test.name -ThrottleLimit $($enabled_tests+1)
-			if ($DebugPreference) {
-				Write-Host "." -NoNewLine
-			}
 		}
 	}
 
