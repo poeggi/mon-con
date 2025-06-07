@@ -671,6 +671,7 @@ $PingTestCode = {
 	}
 	
 	if ($?) {
+		$matches="" #initialize empty to avoid null array index error on no match
 		(($output | Select-String -Pattern "[=<].*ms$" -Raw) -match "[=<]\s?([0-9]{1,5})ms$") > $null
 		if ([bool]$matches[1]) {
 			$RTT=[int]$matches[1]
@@ -735,7 +736,7 @@ getNetworkConfig $IPConfig
 		code=$DNSTestCode;
 		args=('A', $IPConfig.PublicDnsServerIPv4.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
-		enabled=$True
+		enabled=$True;
 	}
 	[TestClass]@{
 		name='D6-PUB';
@@ -751,7 +752,7 @@ getNetworkConfig $IPConfig
 		code=$DNSTestCode;
 		args=('A', $IPConfig.LocalDnsServerIPv4.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
-		enabled=$True
+		enabled=$True;
 	}
 	[TestClass]@{
 		name='D6-EXT';
