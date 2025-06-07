@@ -120,7 +120,7 @@ Only Text (as this is a command-line live monitoring tool).
 
 ## NOTES
 Author  : Kai Poggensee  
-Version : 0.32 (2025-06-02) - adapt int. DNS test to avoid rate limits 
+Version : 0.4 (2025-06-07) - revamp DNS testing, catch more errors
 
 ## EXAMPLES
 ### EXAMPLE 1
