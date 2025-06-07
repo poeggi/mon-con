@@ -614,7 +614,7 @@ $DNSTestCode = {
 		$TargetFQDN = "${TARGET}."
 	}
 
-	Write-Output "Trying to Resolve $($DNS_RECORD_TYPE) of $($TargetFQDN)"
+	Write-Output "Trying to Resolve $($DNS_RECORD_TYPE) of $($TargetFQDN) via $($DNS_SERVER)"
 	if ($OPT_NOREC) {
 		$output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -NoRecursion -QuickTimeout -Name $TargetFQDN	2> $error
 	} else {
@@ -731,7 +731,7 @@ getNetworkConfig $IPConfig
 [TestClass[]]$tests = @(
 	[TestClass]@{
 		name='D4-PUB';
-		descr='DNS resolve external hosts "A" record via generic public DNS server, using IPv4';
+		descr='DNS resolve public "A" record via public DNS server, using IPv4';
 		code=$DNSTestCode;
 		args=('A', $IPConfig.PublicDnsServerIPv4.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
@@ -739,7 +739,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D6-PUB';
-		descr='DNS resolve ext. hosts "AAAA" record via generic public DNS server, using IPv6';
+		descr='DNS resolve public "AAAA" record via public DNS server, using IPv6';
 		code=$DNSTestCode;
 		args=('AAAA', $IPConfig.PublicDnsServerIPv6.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
@@ -747,7 +747,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D4-EXT';
-		descr='DNS resolve an external "A" record via the local (IF config) DNS server, using IPv4';
+		descr='DNS resolve public "A" record via local (IF config) DNS, using IPv4';
 		code=$DNSTestCode;
 		args=('A', $IPConfig.LocalDnsServerIPv4.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
@@ -755,23 +755,39 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D6-EXT';
-		descr='DNS resolve an ext. "AAAA" record via the local (IF config) DNS server, using IPv6';
+		descr='DNS resolve public "AAAA" record via local (IF config) DNS, using IPv6';
 		code=$DNSTestCode;
 		args=('AAAA', $IPConfig.LocalDnsServerIPv6.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
 		enabled=$True;
 	}
 	[TestClass]@{
-		name='D4-INT';
-		descr='DNS resolve from near end DNS its own "PTR" record (no recursion), via IPv4';
+		name='D4-NRE';
+		descr='DNS resolve (no-recurse) from public DNS its own "PTR" record, via IPv4';
+		code=$DNSTestCode;
+		args=('PTR', $IPConfig.PublicDnsServerIPv4.IPAddressToString, [bool]1, $IPConfig.PublicDnsServerIPv4.IPAddressToString);
+		dynargvar='';
+		enabled=$True;
+	}
+	[TestClass]@{
+		name='D6-NRE';
+		descr='DNS resolve (no-recurse) from public DNS its own "PTR" record, via IPv6';
+		code=$DNSTestCode;
+		args=('PTR', $IPConfig.PublicDnsServerIPv6.IPAddressToString, [bool]1, $IPConfig.PublicDnsServerIPv6.IPAddressToString);
+		dynargvar='';
+		enabled=$True;
+	}
+	[TestClass]@{
+		name='D4-NRI';
+		descr='DNS resolve (no-recurse) from local (IF config) DNS its own "PTR" record, via IPv4';
 		code=$DNSTestCode;
 		args=('PTR', $IPConfig.LocalDnsServerIPv4.IPAddressToString, [bool]1, $IPConfig.LocalDnsServerIPv4.IPAddressToString);
 		dynargvar='';
 		enabled=$True;
 	}
 	[TestClass]@{
-		name='D6-INT';
-		descr='DNS resolve from near end DNS its own "PTR" record (no recursion), via IPv6';
+		name='D6-NRI';
+		descr='DNS resolve (no-recurse) from local (IF config) DNS its own "PTR" record, via IPv6';
 		code=$DNSTestCode;
 		args=('PTR', $IPConfig.LocalDnsServerIPv6.IPAddressToString, [bool]1, $IPConfig.LocalDnsServerIPv6.IPAddressToString);
 		dynargvar='';
@@ -955,7 +971,9 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 				$args = $test.args + $(get-variable -name $test.dynargvar -ValueOnly -ErrorAction SilentlyContinue)
 			}
 			$temp = Start-ThreadJob -ScriptBlock $test.code -ArgumentList $args -Name $test.name -ThrottleLimit $($enabled_tests+1)
-			Write-Host "." -NoNewLine
+			if ($DebugPreference) {
+				Write-Host "." -NoNewLine
+			}
 		}
 	}
 
