@@ -110,10 +110,10 @@ param(
 # default configuration options (override via config file)
 #
 
-# The DNS to use when doing DNS tests against a public DNS
-$PUBLIC_DNS_SERVER_NAME = "one.one.one.one"
+# The DNS server to use when doing DNS tests against a public DNS
+$PUBLIC_DNS_SERVER_NAME = "dns.google"
 
-# The Domain name (prefixed with a dynamic counter) to use for testing DNS
+# The domain name (prefixed with a dynamic counter) to use for testing DNS
 $DNS_TEST_DOMAIN = "lowttl.poggensee.it" # TTL 30(s) records for DNS testing
 
 # Define the public host to use for external (ping) testing.
