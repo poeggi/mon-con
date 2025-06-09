@@ -75,7 +75,7 @@
 
 	.NOTES
 	Author  : Kai Poggensee  
-	Version : 0.4 (2025-06-07) - revamp DNS testing, catch more errors 
+	Version : 0.41 (2025-06-09) - revamp DNS tests, catch more errors, avoid public DNS server problems
 #>
 
 ##############################################################################
@@ -111,10 +111,10 @@ param(
 #
 
 # The DNS server to use when doing DNS tests against a public DNS
-$PUBLIC_DNS_SERVER_NAME = "dns.google"
+$PUBLIC_DNS_SERVER_NAME = "one.one.one.one"
 
 # The domain name (prefixed with a dynamic counter) to use for testing DNS
-$DNS_TEST_DOMAIN = "lowttl.poggensee.it" # TTL 30(s) records for DNS testing
+$DNS_TEST_DOMAIN = "lowttl.poggensee.it" # TTL 60(s) records for DNS testing
 
 # Define the public host to use for external (ping) testing.
 # NOTE: feasible choice is a host reachable always and everywhere, with HA
@@ -148,12 +148,12 @@ class IPConfigClass
 	[ipaddress]$OwnPubIPv6
 	[ipaddress]$DefaultRouterIPv4
 	[ipaddress]$DefaultRouterIPv6
-	[string]$PublicDnsServerName
-	[string]$LocalDnsServerName
-	[ipaddress]$PublicDnsServerIPv4
-	[ipaddress]$PublicDnsServerIPv6
 	[ipaddress]$LocalDnsServerIPv4
 	[ipaddress]$LocalDnsServerIPv6
+	[string]$LocalDnsServerName
+	[string]$PublicDnsServerName
+	[ipaddress]$PublicDnsServerIPv4
+	[ipaddress]$PublicDnsServerIPv6
 	[ipaddress]$AUXAddrIPv4
 	[ipaddress]$AUXAddrIPv6
 	[ipaddress]$PublicTestHost1AddrIPv4
@@ -333,10 +333,10 @@ function getLocalDnsServerName {
 		$LocalDnsAutoDetected = (echo "exit" | nslookup.exe | Select-String -Pattern "^.*erver:.*" -CaseSensitive -Raw | Select-String -Pattern "[.:a-z0-9]*$" | % { $_.Matches } | % { $_.Value })		
 		$IPConfig.LocalDnsServerName = $LocalDNSAutoDetected
 	} catch {
-		Write-Error "Local (IF configured) DNS server could not be determined."
+		Write-Error "Local DNS server could not be determined."
 		exit
 	} finally {
-		Write-Host "Local (IF configured) DNS server name:" $IPConfig.LocalDnsServerName
+		Write-Host "Determined Local DNS server name:" $IPConfig.LocalDnsServerName
 	}
 }
 
@@ -345,14 +345,16 @@ function getPublicDnsServerIPs {
 		[Parameter(mandatory=$True)]
 		[IPConfigClass]$IPConfig
 	)
+	$IPConfig.PublicDnsServerName = $PUBLIC_DNS_SERVER_NAME
 	try {
-		$IPConfig.PublicDnsServerIPv4 = Resolve-DnsName -QuickTimeout -type A "$PUBLIC_DNS_SERVER_NAME." |  Where-Object -Property Section -eq "Answer" |  Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -first 1
-		$IPConfig.PublicDnsServerIPv6 = Resolve-DnsName -QuickTimeout -type AAAA "$PUBLIC_DNS_SERVER_NAME." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" |  select -ExpandProperty IPAddress | Sort-Object | Select-Object -first 1
+		$IPConfig.PublicDnsServerIPv4 = Resolve-DnsName -QuickTimeout -type A "$PUBLIC_DNS_SERVER_NAME." |  Where-Object -Property Section -eq "Answer" |  Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -first 1
+		$IPConfig.PublicDnsServerIPv6 = Resolve-DnsName -QuickTimeout -type AAAA "$PUBLIC_DNS_SERVER_NAME." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" |  select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Select-Object -first 1
 	} catch {
 		Write-Warning "Public DNS server not resolved. Falling back to DNS server name."
 		$IPConfig.PublicDnsServerIPv4 = $PUBLIC_DNS_SERVER_NAME
 		$IPConfig.PublicDnsServerIPv6 = $PUBLIC_DNS_SERVER_NAME
 	} finally {
+		Write-Host "Configured public DNS server:" $IPConfig.PublicDnsServerName
 		Write-Host "Public DNS server IPv4 address:" $IPConfig.PublicDnsServerIPv4
 		Write-Host "Public DNS server IPv6 address:" $IPConfig.PublicDnsServerIPv6
 	}
@@ -385,8 +387,8 @@ function getAUXTestIPs {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$IPConfig.AUXAddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
-		$IPConfig.AUXAddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
+		$IPConfig.AUXAddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -last 1
+		$IPConfig.AUXAddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Select-Object -last 1
 	} catch {
 		Write-Warning "Could not get IPs of AUX, omitting"
 		$IPConfig.AUXAddrIPv4 = "n/a"
@@ -403,10 +405,10 @@ function getPublicTestIPs {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$IPConfig.PublicTestHost1AddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$EXT_TEST_HOST1." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
-		$IPConfig.PublicTestHost1AddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$EXT_TEST_HOST1." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
-		$IPConfig.PublicTestHost2AddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$EXT_TEST_HOST2." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
-		$IPConfig.PublicTestHost2AddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$EXT_TEST_HOST2." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object | Select-Object -last 1
+		$IPConfig.PublicTestHost1AddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$EXT_TEST_HOST1." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -last 1
+		$IPConfig.PublicTestHost1AddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$EXT_TEST_HOST1." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Select-Object -last 1
+		$IPConfig.PublicTestHost2AddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$EXT_TEST_HOST2." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -last 1
+		$IPConfig.PublicTestHost2AddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$EXT_TEST_HOST2." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Select-Object -last 1
 	} catch {
 		Write-Warning "Could not resolve IPs of public test hosts, falling back to names."
 		$IPConfig.PublicTestHost1AddrIPv4 = $EXT_TEST_HOST1
@@ -438,8 +440,8 @@ function getNetworkConfig {
 	
 	# determine DNS
 	getPublicDnsServerIPs $IPConfig
-	getLocalDnsServerName $IPConfig
 	getLocalDnsServerIPs $IPConfig
+	getLocalDnsServerName $IPConfig
 
 	if (![string]::IsNullOrEmpty($AUX_TEST_HOST)) {
 		# determine own AUX addresses
@@ -608,7 +610,7 @@ $DNSTestCode = {
 		[string]$TARGET
 	)
 	# NOTE: appending a "." to the TARGET if needed, to resolve only FQDN
-	if (($DNS_RECORD_TYPE -eq "PTR") -or ($TARGET -match "\.$")) {
+	if (($DNS_RECORD_TYPE -notmatch '^A{1}A{0,3}$') -or ($TARGET -match '\.$')) {
 		$TargetFQDN = $TARGET
 	} else {
 		$TargetFQDN = "${TARGET}."
@@ -732,7 +734,7 @@ getNetworkConfig $IPConfig
 [TestClass[]]$tests = @(
 	[TestClass]@{
 		name='D4-PUB';
-		descr='DNS resolve public "A" record via public DNS server, using IPv4';
+		descr='DNS (recursive) resolve public "A" record via public DNS server, using IPv4';
 		code=$DNSTestCode;
 		args=('A', $IPConfig.PublicDnsServerIPv4.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
@@ -740,7 +742,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D6-PUB';
-		descr='DNS resolve public "AAAA" record via public DNS server, using IPv6';
+		descr='DNS (recursive) resolve public "AAAA" record via public DNS server, using IPv6';
 		code=$DNSTestCode;
 		args=('AAAA', $IPConfig.PublicDnsServerIPv6.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
@@ -748,7 +750,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D4-EXT';
-		descr='DNS resolve public "A" record via local (IF config) DNS, using IPv4';
+		descr='DNS (recursive) resolve public "A" record via local (IF config) DNS, using IPv4';
 		code=$DNSTestCode;
 		args=('A', $IPConfig.LocalDnsServerIPv4.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
@@ -756,27 +758,43 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D6-EXT';
-		descr='DNS resolve public "AAAA" record via local (IF config) DNS, using IPv6';
+		descr='DNS (recursive) resolve public "AAAA" record via local (IF config) DNS, using IPv6';
 		code=$DNSTestCode;
 		args=('AAAA', $IPConfig.LocalDnsServerIPv6.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
 		enabled=$True;
 	}
 	[TestClass]@{
-		name='D4-NRE';
-		descr='DNS resolve (no-recurse) from public DNS its own "PTR" record, via IPv4';
+		name='D4-PIE'; # NOTE: Should be possible non-recursive, but Cloudflare generates spurious server errors if set, so allow recursion for now
+		descr='DNS query from public DNS the "PTR" of his own IP, via IPv6';
 		code=$DNSTestCode;
-		args=('PTR', $IPConfig.PublicDnsServerIPv4.IPAddressToString, [bool]1, $IPConfig.PublicDnsServerIPv4.IPAddressToString);
+		args=('PTR', $IPConfig.PublicDnsServerIPv4.IPAddressToString, [bool]0, $IPConfig.PublicDnsServerIPv4.IPAddressToString);
 		dynargvar='';
 		enabled=$True;
 	}
 	[TestClass]@{
-		name='D6-NRE';
-		descr='DNS resolve (no-recurse) from public DNS its own "PTR" record, via IPv6';
+		name='D6-PIE'; # NOTE: Should be possible non-recursive, but Cloudflare generates spurious server errors if set, so allow recursion for now
+		descr='DNS query from public DNS the "PTR" of his own IP, via IPv6';
 		code=$DNSTestCode;
-		args=('PTR', $IPConfig.PublicDnsServerIPv6.IPAddressToString, [bool]1, $IPConfig.PublicDnsServerIPv6.IPAddressToString);
+		args=('PTR', $IPConfig.PublicDnsServerIPv6.IPAddressToString, [bool]0, $IPConfig.PublicDnsServerIPv6.IPAddressToString);
 		dynargvar='';
 		enabled=$True;
+	}
+	[TestClass]@{
+		name='D4-NRE';
+		descr='DNS query from public DNS root "NS" records (implicitlty non-recursive), via IPv4';
+		code=$DNSTestCode;
+		args=('NS', $IPConfig.PublicDnsServerIPv4.IPAddressToString, [bool]0, '.');
+		dynargvar='';
+		enabled=$False; # NOTE: Google's public DNS is sometimes not answering, so test is disabled for now 
+	}
+	[TestClass]@{
+		name='D6-NRE';
+		descr='DNS query from public DNS root "NS" records (implicitlty non-recursive), via IPv6';
+		code=$DNSTestCode;
+		args=('NS', $IPConfig.PublicDnsServerIPv6.IPAddressToString, [bool]0, '.');
+		dynargvar='';
+		enabled=$False; # NOTE: Google's public DNS is sometimes not answering, so test is disabled for now 
 	}
 	[TestClass]@{
 		name='D4-NRI';
@@ -925,8 +943,8 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	{
 	$stuffChars = ($Cycle.ToString().Length -lt 5) ? 5-$Cycle.ToString().Length : 0
 
-	# NOTE: dedicated DNS names, entries crafted to have a very low TTL 
-	#	   as to not measure cached -> but ensure external requests
+	# NOTE: dedicated DNS names, entries design to have a very low TTL 
+	#	   as to not measure cache, but ensure external requests every time
 	$SHORT_TTL_DNSTEST_HOST = "${DNSTestDynPrefix}.${DNS_TEST_DOMAIN}"
 	
 	# signal that we start
@@ -1019,9 +1037,9 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 		clearCurrentConsoleLine
 	}
 		
-	# TTL of the record is 30(s), rotate same speed to test DNS caching
-	# as a result of this, the TTL received should never be <30s
-	if ($DNSTestDynPrefix -ge $([Math]::Ceiling($((30000/$TestInterval)-1)))) {
+	# TTL of the record is 60(s), rotate same speed to test DNS caching
+	# as a result of this, the TTL received should never be <60s
+	if ($DNSTestDynPrefix -ge $([Math]::Ceiling($((60000/$TestInterval)-1)))) {
 		$DNSTestDynPrefix = 0
 	} else {
 		$DNSTestDynPrefix++
