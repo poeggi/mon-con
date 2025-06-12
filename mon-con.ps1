@@ -144,6 +144,7 @@ class IPConfigClass
 {
 	[ipaddress]$OwnIPv4
 	[ipaddress]$OwnIPv6
+	[ipaddress]$OwnLLIPv6
 	[ipaddress]$OwnPubIPv4
 	[ipaddress]$OwnPubIPv6
 	[ipaddress]$DefaultRouterIPv4
@@ -265,16 +266,22 @@ function getLocalHostIPs {
 		$IPs = $IPv6Interface.IPAddress
 		foreach ($IP in $IPs) {
 			if ($IP -match $IPv6_REGEXP) {
-				$IPConfig.OwnIPv6 = $IP
+				if ($IP -match "fe80:*") {
+					$IPConfig.OwnLLIPv6 = $IP;
+				} else {
+					$IPConfig.OwnIPv6 = $IP;
+				}
 			}
 		}
 	} catch {
 		Write-Warning "Own local IPs could not be determined. Falling back to localhost addresses."
 		$IPConfig.OwnIPv4 = "127.0.0.1"
 		$IPConfig.OwnIPv6 = "::1"
+		$IPConfig.OwnLLIPv6 = "::1"
 	} finally {
 		Write-Host "Local (Own) IPv4 address:" $IPConfig.OwnIPv4
-		Write-Host "Local (Own) IPv6 address:" $IPConfig.OwnIPv6
+		Write-Host "Local (Own) routeable IPv6 address:" $IPConfig.OwnIPv6
+		Write-Host "Local (Own) LinkLocal IPv6 address:" $IPConfig.OwnLLIPv6
 	}
 }
 
@@ -597,6 +604,134 @@ $SelftestDummyJobTestCode = {
 	return
 }	
 
+$DNSUDP_PingTestCode = {
+    param (
+		[Parameter(Position=0,mandatory=$True)]
+		[int]$IPVER,
+		[Parameter(Position=1,mandatory=$True)]
+		[string]$TARGET,
+		[Parameter(Position=2,mandatory=$True)]
+		[int]$TIMEOUT_PING,
+		[Parameter(Position=3,mandatory=$False)]
+		[string]$DNSNAME
+    )
+
+    $udpClient = $null
+	$success = $False
+	Write-Output "DNS Ping preparing request towards $($TARGET) using IPv$($IPVER)"
+
+    try {
+        # Set address family
+        $addrFamily = if ($IPVER -eq 6) {
+            [System.Net.Sockets.AddressFamily]::InterNetworkV6
+        } else {
+            [System.Net.Sockets.AddressFamily]::InterNetwork
+        }
+
+		$remoteEP = New-Object System.Net.IPEndPoint ([System.Net.IPAddress]$TARGET, 53)
+
+		# Create UDP client and set timeout
+		$udpClient = New-Object System.Net.Sockets.UdpClient($addrFamily)
+
+        $targetAsInt=[bigint]::new(([System.Net.IPAddress]::Parse($TARGET).GetAddressBytes() + 0)) % 8192
+
+		# Fixed local port to bind to (change if needed)
+		$localPort = 40000 + $IPVER + $targetAsInt
+
+		# Create local endpoint to bind socket (IPv4 or IPv6 Any)
+		if ($addrFamily -eq [System.Net.Sockets.AddressFamily]::InterNetworkV6) {
+			$localEP = New-Object System.Net.IPEndPoint ([System.Net.IPAddress]::IPv6Any, $localPort)
+		} else {
+			$localEP = New-Object System.Net.IPEndPoint ([System.Net.IPAddress]::Any, $localPort)
+		}
+
+		# Bind UDP client to fixed local port
+		$udpClient.Client.Bind($localEP)
+
+        $udpClient.Client.SendTimeout = $TIMEOUT_PING
+        $udpClient.Client.ReceiveTimeout = $TIMEOUT_PING
+
+        # create DNS query header
+
+		$transactionId = [byte[]]@(
+			[byte](Get-Random -Minimum 0 -Maximum 256),
+			[byte](Get-Random -Minimum 0 -Maximum 256)
+		)
+		#$transactionId = [byte[]]@(([byte]0),([byte]$IPVER))
+
+        $flags = 0x01, 0x00  # Standard query
+        $questions = 0x00, 0x01
+        $answerRRs = 0x00, 0x00
+        $authorityRRs = 0x00, 0x00
+        $additionalRRs = 0x00, 0x00
+
+        if (-not $DNSNAME) {
+			# Root as default (AVOID: may lead to spurious error (missing response) when using Google DNS)
+			$queryName = 0x00
+		} else {
+			# Define the domain name string explicitly (as it's implied in your original line)
+			$domainName = $DNSNAME
+
+			# Initialize a dynamic list to store the bytes as we build them
+			$byteList = [System.Collections.Generic.List[byte]]::new()
+
+			# Split the domain name into its individual parts (labels)
+			$parts = $domainName.Split('.')
+
+			# Loop through each part of the domain name
+			foreach ($part in $parts) {
+				# Add the length of the current part as a byte
+				$byteList.Add($part.Length)
+
+				# Loop through each character of the part and add its byte value
+				foreach ($char in $part.ToCharArray()) {
+					$byteList.Add([byte][char]$char)
+				}
+			}
+
+			# Add the final null (zero) byte to terminate the DNS name sequence
+			$byteList.Add(0)
+
+			# Convert the list to a fixed-size byte array, assigning it to $queryName
+			$queryName = $byteList.ToArray()
+		}
+
+        # Query type: A for IPv4, AAAA for IPv6
+        $queryType = if ($IPVER -eq 6) {
+            0x00, 0x1C  # AAAA
+        } else {
+            0x00, 0x01  # A
+        }
+
+        $queryClass = 0x00, 0x01  # IN class
+
+        $query = $transactionId + $flags + $questions + $answerRRs + $authorityRRs + $additionalRRs + $queryName + $queryType + $queryClass
+
+		$bytesSent = $udpClient.Send($query, $query.Length, $remoteEP)
+		Write-Output "Local Port used: $($udpClient.Client.LocalEndPoint.Port)"
+		Write-Output "Sent $($bytesSent) bytes in raw data:"
+		Write-Output "$query"
+
+		$recvEP = New-Object System.Net.IPEndPoint ([System.Net.IPAddress]::Any, 0)
+
+		$response = $udpClient.Receive([ref]$recvEP)
+
+		if ($response) {
+			$success = $True
+			Write-Output "Received $($response.length) bytes in raw data:"
+			Write-Output "$response"
+		}
+    }
+    catch {
+		$success = $False
+		Write-Output "Failure: DNS ping function threw an exception, details (if any) below."
+		Write-Output $_.Exception.Message
+    }
+    finally {
+        if ($udpClient) { $udpClient.Close() }
+		if (-not $success) { throw "Failed DNS ping test" }
+    }
+}
 
 $DNSTestCode = {
 	param (
@@ -718,6 +853,10 @@ $PingTestCode = {
 $startupPriority = (Get-Process -Id $PID).PriorityClass
 (Get-Process -Id $PID).PriorityClass = [System.Diagnostics.ProcessPriorityClass]::High
 
+# take note of the script start time
+$timeStamp = Get-Date -Format "HH:mm:ss"	
+Write-Host "($timeStamp): Starting up mon-con"
+
 # set up variables
 $Cycle = 0
 $CyclesWithFail = 0
@@ -765,12 +904,28 @@ getNetworkConfig $IPConfig
 		enabled=$True;
 	}
 	[TestClass]@{
+		name='D4-PGE';
+		descr='DNS ping ext, send single-UDP-packet query and wait for any reply, using IPv4';
+		code=$DNSUDP_PingTestCode;
+		args=('4', $IPConfig.PublicDnsServerIPv4.IPAddressToString, $Timeout, $IPConfig.PublicDnsServerName);
+		dynargvar='';
+		enabled=$True;
+	}
+	[TestClass]@{
+		name='D6-PGE';
+		descr='DNS ping ext, send single-UDP-packet query and wait for any reply, using IPv6';
+		code=$DNSUDP_PingTestCode;
+		args=('6', $IPConfig.PublicDnsServerIPv6.IPAddressToString, $Timeout, $IPConfig.PublicDnsServerName);
+		dynargvar='';
+		enabled=$True;
+	}
+	[TestClass]@{
 		name='D4-PIE'; # NOTE: Should be possible non-recursive, but Cloudflare generates spurious server errors if set, so allow recursion for now
 		descr='DNS query from public DNS the "PTR" of his own IP, via IPv6';
 		code=$DNSTestCode;
 		args=('PTR', $IPConfig.PublicDnsServerIPv4.IPAddressToString, [bool]0, $IPConfig.PublicDnsServerIPv4.IPAddressToString);
 		dynargvar='';
-		enabled=$True;
+		enabled=$False;
 	}
 	[TestClass]@{
 		name='D6-PIE'; # NOTE: Should be possible non-recursive, but Cloudflare generates spurious server errors if set, so allow recursion for now
@@ -778,7 +933,7 @@ getNetworkConfig $IPConfig
 		code=$DNSTestCode;
 		args=('PTR', $IPConfig.PublicDnsServerIPv6.IPAddressToString, [bool]0, $IPConfig.PublicDnsServerIPv6.IPAddressToString);
 		dynargvar='';
-		enabled=$True;
+		enabled=$False;
 	}
 	[TestClass]@{
 		name='D4-NRE';
@@ -928,7 +1083,7 @@ if ($TestInterval -le $Timeout) {
 	Write-Host "NOTE: TestInterval less than or equal to Timeout, expect some hick-ups!"
 }
 
-$cycleStartTime = $programStartTime = Get-Date
+$cycleStartTime = $testStartTime = Get-Date
 $cycleStartTime = $cycleStartTime.AddMilliseconds(-$TestInterval)
 $cycleStartTime = $cycleStartTime.AddMilliseconds(2*$SLEEP_WAIT_QUANTUM)
 
@@ -1046,20 +1201,24 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	}
 	
 }} catch {
-	Write-Debug "Entering catch statement after exception"
+	$timeStamp = Get-Date -Format "HH:mm:ss"	
+	Write-Debug "($timeStamp): Entering catch statement after exception"
 	Get-Job | Wait-Job -Timeout $TIMEOUT_S > $null
 	Get-Job -State Running | Stop-Job
 
 	# close out on started jobs
 	
 	$null = jobsEvalThenPurge
+
 } finally {
-	$programEndTime = Get-Date
-	$programLength = [Math]::Round(($programEndTime - $programStartTime).Totalseconds,0)
+	$testEndTime = Get-Date
+	$testLength = [Math]::Round(($testEndTime - $testStartTime).Totalseconds,0)
 
 	# notify we are stopping
+	$timeStamp = $testEndTime | Get-Date -Format "HH:mm:ss"	
+
 	Write-Host " "
-	Write-Host "Ending mon-con after $Cycle complete cycle(s), runtime was ~$programLength second(s)."
+	Write-Host "($timeStamp): Concluding tests after $Cycle test cycle(s) taking ~$testLength second(s)."
 
 	# abort in orderly fashion
 	$jobs = Get-Job
