@@ -120,7 +120,7 @@ Only Text (as this is a command-line live monitoring tool).
 
 ## NOTES
 Author  : Kai Poggensee  
-Version : 0.41 (2025-06-09) - revamp DNS tests, catch more errors, avoid public DNS server problems
+Version : 0.5 (2025-06-12) - introduce new DNS ping to optimize tests
 
 
 ## EXAMPLES
