@@ -57,7 +57,8 @@ Accept wildcard characters?  false
 ```
  
 ### -FocusTest &lt;String&gt;
-With this parameter, only the test named [string] is executed.
+With this parameter, only the test named [string] is executed.  
+Multiple tests can be defined, comma separated. Wildcards supported.
 ```
 Required?                    false
 Position?                    2

@@ -44,7 +44,8 @@
 	Note: Output will also retain margin, i.e. one line before/after an event.
 
 	.PARAMETER FocusTest
-	With this parameter, only the test named [string] is executed.
+	With this parameter, only the test(s) named [string] is executed.
+	Multiple tests can be defined, comma separated. Wildcards supported.
 
 	.PARAMETER Iterations
 	Define the [int] number of cycles that the test(s) will be run.  
@@ -95,7 +96,7 @@ param(
 	[ValidateSet('Full','Warning','Error')]
 	[string]$Display = 'Full',
 	[Parameter()]
-	[string]$FocusTest,
+	[string[]]$FocusTest,
 	[Parameter()]
 	[int]$Iterations = -1,
 	[Parameter()]
@@ -423,8 +424,10 @@ function getPublicTestIPs {
 		$IPConfig.PublicTestHost2AddrIPv4 = $EXT_TEST_HOST2
 		$IPConfig.PublicTestHost2AddrIPv6 = $EXT_TEST_HOST2
 	} finally {
+		Write-Host "Configured public server #1:" $EXT_TEST_HOST1
 		Write-Host "Public Server #1 IPv4 address:" $IPConfig.PublicTestHost1AddrIPv4
 		Write-Host "Public Server #1 IPv6 address:" $IPConfig.PublicTestHost1AddrIPv6
+		Write-Host "Configured public server #2:" $EXT_TEST_HOST2
 		Write-Host "Public Server #2 IPv4 address:" $IPConfig.PublicTestHost2AddrIPv4
 		Write-Host "Public Server #2 IPv6 address:" $IPConfig.PublicTestHost2AddrIPv6
 	}
@@ -1055,18 +1058,20 @@ getNetworkConfig $IPConfig
 
 # focus test mode, disabling all other tests
 if ($FocusTest) {
+	$focusTestArray = $FocusTest -split ','
 	foreach ($test in $tests) {
-		if ($test.name -eq $FocusTest) {
-			$test.enabled = $True
-		} else {
-			$test.enabled = $False
+		$test.enabled = $false
+		foreach ($pattern in $focusTestArray) {
+			if ($test.name -like $pattern) {
+				$test.enabled = $true
+				break
+			}
 		}
 	}
 }
 
-$enabled_tests=0
-
 # Output list of active tests and purpose in verbose mode
+$enabled_tests=0
 Write-Verbose "The following tests are enabled:"
 foreach ($test in $tests) {
 	if ($test.enabled) {
