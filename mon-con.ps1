@@ -395,15 +395,15 @@ function getAUXTestIPs {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$IPConfig.AUXAddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -last 1
-		$IPConfig.AUXAddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Select-Object -last 1
+		$IPConfig.AUXAddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -first 1
+		$IPConfig.AUXAddrIPv6 = (Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Where-Object { $_ } )[0]
 	} catch {
-		Write-Warning "Could not get IPs of AUX, omitting"
+		Write-Warning "Could not get IPs of AUX hosts, omitting"
 		$IPConfig.AUXAddrIPv4 = "n/a"
 		$IPConfig.AUXAddrIPv6 = "n/a"
 	} finally {
-		Write-Host "Router AUX Side IPv4 address:" $IPConfig.AUXAddrIPv4
-		Write-Host "Router AUX Side IPv6 address:" $IPConfig.AUXAddrIPv6
+		Write-Host "AUX server IPv4 address:" $IPConfig.AUXAddrIPv4
+		Write-Host "AUX server IPv6 address:" $IPConfig.AUXAddrIPv6
 	}
 }
 
@@ -823,8 +823,10 @@ $PingTestCode = {
 		if (("$output" -match '\(0\%') -and ($RTT -ge 0)) {
 			$success = $True
 
-			# Assumption: RTT can be 100ms+, even for LAN, but even WAN shall not exceed 500ms
-			if ($RTT -ge $(100 + ($OPT_MAXHOPS * 2))) {
+			# Assumption: RTT shall be <100ms on same link, <200ms on LAN, <500ms on WAN
+			if ((($OPT_MAXHOPS -eq 1) -and ($RTT -ge 100)) -or
+			    (($OPT_MAXHOPS -eq 2) -and ($RTT -ge 200)) -or
+			    ($RTT -ge 500)) {
 				Write-Output "Warning: Ping RTT (round trip time) abnormally high: ${RTT}ms."
 				$warn = $True
 			}
@@ -960,7 +962,7 @@ getNetworkConfig $IPConfig
 		code=$DNSTestCode;
 		args=('PTR', $IPConfig.LocalDnsServerIPv4.IPAddressToString, [bool]1, $IPConfig.LocalDnsServerIPv4.IPAddressToString);
 		dynargvar='';
-		enabled=$True;
+		enabled=$False; # NOTE: not working if running e.g. against apple mobile hotspot (tethering), disabled 
 	}
 	[TestClass]@{
 		name='D6-NRI';
@@ -968,7 +970,7 @@ getNetworkConfig $IPConfig
 		code=$DNSTestCode;
 		args=('PTR', $IPConfig.LocalDnsServerIPv6.IPAddressToString, [bool]1, $IPConfig.LocalDnsServerIPv6.IPAddressToString);
 		dynargvar='';
-		enabled=$True;
+		enabled=$False; # NOTE: not working if running e.g. against apple mobile hotspot (tethering), disabled
 	}
 	[TestClass]@{
 		name='P4-PB1';
@@ -1000,7 +1002,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='P4-AUX';
-		descr='Ping the Aux / user defined IPv4 adress';
+		descr='Ping AUX host (assumed to be on LAN) / user defined IPv4 adress';
 		code=$PingTestCode;
 		args=('4', $IPConfig.AUXAddrIPv4, 2, $Timeout);
 		dynargvar='';
@@ -1008,7 +1010,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='P6-AUX';
-		descr='Ping the Aux / user defined IPv6 adress';
+		descr='Ping AUX host (assumed to be on LAN) / user defined IPv6 adress';
 		code=$PingTestCode;
 		args=('6', $IPConfig.AUXAddrIPv6, 2, $Timeout);
 		dynargvar='';
