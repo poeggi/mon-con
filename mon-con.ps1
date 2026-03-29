@@ -338,7 +338,7 @@ function getLocalDnsServerName {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$LocalDnsAutoDetected = (echo "exit" | nslookup.exe | Select-String -Pattern "^.*erver:.*" -CaseSensitive -Raw | Select-String -Pattern "[.:a-z0-9]*$" | % { $_.Matches } | % { $_.Value })		
+		$LocalDnsAutoDetected = (echo "exit" | nslookup.exe 2>$null | Where-Object { $_ -match ":\s+\S" } | Select-Object -First 1 | ForEach-Object { ($_ -split ":\s+", 2)[1].Trim() })
 		$IPConfig.LocalDnsServerName = $LocalDNSAutoDetected
 	} catch {
 		Write-Error "Local DNS server could not be determined."
@@ -714,7 +714,11 @@ $DNSUDP_PingTestCode = {
 		Write-Output "Sent $($bytesSent) bytes in raw data:"
 		Write-Output "$query"
 
-		$recvEP = New-Object System.Net.IPEndPoint ([System.Net.IPAddress]::Any, 0)
+		if ($addrFamily -eq [System.Net.Sockets.AddressFamily]::InterNetworkV6) {
+			$recvEP = New-Object System.Net.IPEndPoint ([System.Net.IPAddress]::IPv6Any, 0)
+		} else {
+			$recvEP = New-Object System.Net.IPEndPoint ([System.Net.IPAddress]::Any, 0)
+		}
 
 		$response = $udpClient.Receive([ref]$recvEP)
 
@@ -830,7 +834,7 @@ $PingTestCode = {
 				$warn = $True
 			}
 		} else {
-			Write-Output "Failure: Ping request sent but response missing (or after timeout of ${TIMEOUT_PING}s)."
+			Write-Output "Failure: Ping request sent but response missing (or after timeout of ${TIMEOUT_PING}ms)."
 			$success = $False
 		}
 	} else {
