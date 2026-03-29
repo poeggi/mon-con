@@ -79,10 +79,6 @@
 	Version : 0.5 (2025-06-12) - introduce new DNS ping to optimize tests
 #>
 
-##############################################################################
-# TODO: move test statistics to class instead of using ugly _PASS _FAIL hack.
-##############################################################################
-
 #
 # command-line parameter definitions
 #
@@ -299,8 +295,8 @@ function getHostPublicIPs {
 		Write-Warning "Own public IPs could not be determined."
 		# TODO: consider to fail gracefully?
 	} finally {
-		Write-Host "Hosts public IPv4 address:" $IPConfig.OwnPubIPv4
-		Write-Host "Hosts public IPv6 address:" $IPConfig.OwnPubIPv6
+		Write-Host "Host's public IPv4 address:" $IPConfig.OwnPubIPv4
+		Write-Host "Host's public IPv6 address:" $IPConfig.OwnPubIPv6
 	}
 }
 
@@ -397,7 +393,7 @@ function getAUXTestIPs {
 		$IPConfig.AUXAddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -first 1
 		$IPConfig.AUXAddrIPv6 = (Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Where-Object { $_ } )[0]
 	} catch {
-		Write-Warning "Could not get IPs of AUX hosts, omitting"
+		Write-Warning "Could not resolve AUX host IPs, skipping."
 		$IPConfig.AUXAddrIPv4 = "n/a"
 		$IPConfig.AUXAddrIPv6 = "n/a"
 	} finally {
@@ -497,10 +493,9 @@ function jobsEvalThenPurge {
 	foreach ($job in Get-Job) {
 
 		$OutputJob = 0
+		$test = $tests | Where-Object { $_.name -eq $job.Name }
 		Write-Host " " -NoNewLine
 		if ($job.State -eq 'Completed') {
-			$vname = $job.Name + "_PASS"
-			
 			$jobOutput = Receive-Job -job $job -Keep 2>&1
 			if (!($jobOutput -match "Warning:")) {
 				# TEST OK => GREEN
@@ -513,13 +508,14 @@ function jobsEvalThenPurge {
 					$OutputJob = 1
 				}
 			}
+			$test.testpass++
 		} elseif ($job.State -eq 'Failed') { # Fails means exception
 			# FAILURE => RED
 			if ($VerbosePreference -or $DebugPreference) {
 				$OutputJob = 1
 			}
-			$vname = $job.Name + "_FAIL"
 			$fail++
+			$test.testfail++
 			Write-Host $job.Name -NoNewLine -ForeGroundColor Red
 			if ($BeepOnError) {[Console]::Beep()}
 		} elseif ($job.State -eq 'Stopped') {
@@ -527,19 +523,15 @@ function jobsEvalThenPurge {
 			if ($VerbosePreference -or $DebugPreference) {
 				$OutputJob = 1
 			}
-			$vname = $job.Name + "_FAIL" # TODO: separate timeout management
 			$fail++
+			$test.testtimeout++
 			Write-Host $job.Name -NoNewLine -ForeGroundColor Blue
 		} else {
 			# irregular (other state - e.g. unfinished)
-			$vname = ""
+			$test.testunknown++
 			Write-Host $job.Name -NoNewLine -ForeGroundColor DarkGray
 			continue
 		}
-
-		$temp = get-variable -name "$vname" -ValueOnly -ErrorAction SilentlyContinue
-		$temp++
-		set-variable -name "$vname" -value $temp -scope Script
 		
 		if (($VerbosePreference -and $OutputJob) -or $DebugPreference) {
 			$jobOutput = Receive-Job -job $job 2>&1
@@ -594,7 +586,7 @@ $SelftestDummyJobTestCode = {
 	if($PSVersionTable.PSVersion.Minor -lt 4) {
 		Write-Output "Warning: PowerShell version is outdated, expect sub-par performance!"
 	}
-	Write-Output "Running PowerShell Version: $($PSVersionTable.PSVersion.ToString())"
+	Write-Output "Running PowerShell version: $($PSVersionTable.PSVersion.ToString())"
 	
 	Write-Output "Starting Self-test job, total runtime 250ms."
 	Write-Output "Sleeping 200ms..."
@@ -710,7 +702,7 @@ $DNSUDP_PingTestCode = {
         $query = $transactionId + $flags + $questions + $answerRRs + $authorityRRs + $additionalRRs + $queryName + $queryType + $queryClass
 
 		$bytesSent = $udpClient.Send($query, $query.Length, $remoteEP)
-		Write-Output "Local Port used: $($udpClient.Client.LocalEndPoint.Port)"
+		Write-Output "Local port used: $($udpClient.Client.LocalEndPoint.Port)"
 		Write-Output "Sent $($bytesSent) bytes in raw data:"
 		Write-Output "$query"
 
@@ -757,7 +749,7 @@ $DNSTestCode = {
 		$TargetFQDN = "${TARGET}."
 	}
 
-	Write-Output "Trying to Resolve $($DNS_RECORD_TYPE) of $($TargetFQDN) via $($DNS_SERVER)"
+	Write-Output "Trying to resolve $($DNS_RECORD_TYPE) of $($TargetFQDN) via $($DNS_SERVER)"
 	if ($OPT_NOREC) {
 		$output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -NoRecursion -QuickTimeout -Name $TargetFQDN -ErrorVariable dnsError
 	} else {
@@ -1085,12 +1077,12 @@ foreach ($test in $tests) {
 	}
 }
 
-Write-Host ("Running tests with TestInterval (i.e. one cycle every) " + $TestInterval + " milliseconds")
+Write-Host ("Test interval: one cycle every " + $TestInterval + " milliseconds")
 Write-Host ("The timeout (of individual tests) is set to " + $Timeout + " milliseconds")
 
 
 if ($TestInterval -le $Timeout) {
-	Write-Host "NOTE: TestInterval less than or equal to Timeout, expect some hick-ups!"
+	Write-Host "NOTE: TestInterval less than or equal to Timeout, expect some hiccups!"
 }
 
 $cycleStartTime = $testStartTime = Get-Date
@@ -1154,7 +1146,7 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 			} else {
 				$args = $test.args + $(get-variable -name $test.dynargvar -ValueOnly -ErrorAction SilentlyContinue)
 			}
-			$temp = Start-ThreadJob -ScriptBlock $test.code -ArgumentList $args -Name $test.name -ThrottleLimit $($enabled_tests+1)
+			$null = Start-ThreadJob -ScriptBlock $test.code -ArgumentList $args -Name $test.name -ThrottleLimit $($enabled_tests+1)
 		}
 	}
 
@@ -1228,12 +1220,12 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	$timeStamp = $testEndTime | Get-Date -Format "HH:mm:ss"	
 
 	Write-Host " "
-	Write-Host "($timeStamp): Concluding tests after $Cycle test cycle(s) taking ~$testLength second(s)."
+	Write-Host "($timeStamp): Completed $Cycle test cycle(s) in ~$testLength second(s)."
 
 	# abort in orderly fashion
 	$jobs = Get-Job
 	if ($jobs) {
-		Write-Host "Gathering last results from run #${CYCLE}: " -NoNewLine
+		Write-Host "Gathering last results from run #${Cycle}: " -NoNewLine
 		$results = Wait-Job -Timeout 0.1 -job $jobs
 		# abort jobs that have not finished by now
 		Get-Job | Stop-Job
@@ -1250,16 +1242,9 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	Write-Host "Test Results Summary:"
 	foreach ($test in $tests) {
 		if ($test.enabled) {
-			$vname_fail = $test.Name + "_FAIL"
-			$vname_pass = $test.Name + "_PASS"
-			$vname_total = $test.Name + "_TOTAL"
-
-			$temp_fail = get-variable -name "$vname_fail" -ValueOnly -ErrorAction SilentlyContinue
-			$temp_pass = get-variable -name "$vname_pass" -ValueOnly -ErrorAction SilentlyContinue
-			if ($temp_pass) {} else {$temp_pass = 0}
-
-			$temp_total = $temp_fail + $temp_pass
-			set-variable -name "$vname_total" -value $temp_total
+			$temp_pass  = $test.testpass
+			$temp_fail  = $test.testfail + $test.testtimeout + $test.testunknown
+			$temp_total = $temp_pass + $temp_fail
 
 			if ($temp_total -gt 0) {
 				$temp_percent = [Math]::Round($temp_pass / $temp_total * 100, 2)
