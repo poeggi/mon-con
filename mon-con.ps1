@@ -192,7 +192,7 @@ class TestCollectionClass
 	[string] addressByName () # class method returning test with name
 	{
 		$retVal = $null
-		foreach ($test in .this.$tests) { if ($_.name -eq "x") {} }
+		foreach ($test in $this.tests) { if ($test.name -eq "x") {} }
 		return $retVal
 	}
 }
@@ -507,7 +507,7 @@ function jobsEvalThenPurge {
 				# TEST OK => GREEN
 				Write-Host $job.Name -NoNewLine -ForeGroundColor Green
 			} else {
-				$warning = $warning + 1
+				$warning++
 				# WARNING => AMBER
 				Write-Host $job.Name -NoNewLine -ForeGroundColor Yellow
 				if ($VerbosePreference -or $DebugPreference) {
@@ -520,7 +520,7 @@ function jobsEvalThenPurge {
 				$OutputJob = 1
 			}
 			$vname = $job.Name + "_FAIL"
-			$fail = $fail + 1
+			$fail++
 			Write-Host $job.Name -NoNewLine -ForeGroundColor Red
 			if ($BeepOnError) {[Console]::Beep()}
 		} elseif ($job.State -eq 'Stopped') {
@@ -529,7 +529,7 @@ function jobsEvalThenPurge {
 				$OutputJob = 1
 			}
 			$vname = $job.Name + "_FAIL" # TODO: separate timeout management
-			$fail = 1
+			$fail++
 			Write-Host $job.Name -NoNewLine -ForeGroundColor Blue
 		} else {
 			# irregular (other state - e.g. unfinished)
@@ -1181,8 +1181,8 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	$LastCycleHadWarning = $CycleHadWarning
 
 	$jobStatistics = jobsEvalThenPurge
-	$CycleHadFail = $jobStatistics.Fails
-	$CycleHadWarning = $jobStatistics.Warnings
+	$CycleHadFail = [bool]$jobStatistics.Fails
+	$CycleHadWarning = [bool]$jobStatistics.Warnings
 	
 	$CyclesWithFail += $CycleHadFail
 	$CyclesWithWarnings += $CycleHadWarning
