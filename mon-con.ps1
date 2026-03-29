@@ -159,12 +159,6 @@ class IPConfigClass
 	[ipaddress]$PublicTestHost2AddrIPv4
 	[ipaddress]$PublicTestHost2AddrIPv6
 	
-	[string] printDetails () # class method returning all
-	{
-		$retVal = ""
-		foreach ($o in $this) {$retVal += $o}
-		return $retVal
-	}
 }
 
 class TestClass
@@ -179,18 +173,6 @@ class TestClass
 	[int]$testfail
 	[int]$testtimeout
 	[int]$testunknown
-}
-
-class TestCollectionClass
-{
-	[TestClass[]]$tests
-	
-	[string] addressByName () # class method returning test with name
-	{
-		$retVal = $null
-		foreach ($test in $this.tests) { if ($test.name -eq "x") {} }
-		return $retVal
-	}
 }
 
 
@@ -218,7 +200,7 @@ function getDefaultRouteInterface {
 	$Interface = ""
 	$Metric = 1000
 	
-	$Interfaces = (Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.IPEnabled})
+	$Interfaces = (Get-wmiObject Win32_networkAdapterConfiguration | Where-Object {$_.IPEnabled})
 	foreach ($IF in $Interfaces) {
 		$SubInterfaces = (Get-NetIPInterface -InterfaceIndex $IF.InterfaceIndex)
 
@@ -293,7 +275,6 @@ function getHostPublicIPs {
 		$IPConfig.OwnPubIPv6 = (Invoke-WebRequest $PUBLIC_IPv6_URL -ConnectionTimeoutSeconds 4 -OperationTimeoutSeconds 4).Content
 	} catch {
 		Write-Warning "Own public IPs could not be determined."
-		# TODO: consider to fail gracefully?
 	} finally {
 		Write-Host "Host's public IPv4 address:" $IPConfig.OwnPubIPv4
 		Write-Host "Host's public IPv6 address:" $IPConfig.OwnPubIPv6
@@ -308,18 +289,16 @@ function getDefaultRouterIPs {
 	$IPv4Interface = getDefaultRouteInterface('IPv4')
 	$IPv6Interface = getDefaultRouteInterface('IPv6')
 	
-	$IPv4Gateways = (Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.InterfaceIndex -eq $IPv4Interface.InterfaceIndex}| ?{$_.IPEnabled}).DefaultIPGateway
+	$IPv4Gateways = (Get-wmiObject Win32_networkAdapterConfiguration | Where-Object {$_.InterfaceIndex -eq $IPv4Interface.InterfaceIndex} | Where-Object {$_.IPEnabled}).DefaultIPGateway
 	foreach ($IPv4Gateway in $IPv4Gateways) {
-		if ($IPv4Gateway -match $IPv4_REGEXP)
-		{
+		if ($IPv4Gateway -match $IPv4_REGEXP) {
 			$IPConfig.DefaultRouterIPv4 = $IPv4Gateway
 		}
 	}
 
-	$IPv6Gateways = (Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.InterfaceIndex -eq $IPv6Interface.InterfaceIndex}| ?{$_.IPEnabled}).DefaultIPGateway
+	$IPv6Gateways = (Get-wmiObject Win32_networkAdapterConfiguration | Where-Object {$_.InterfaceIndex -eq $IPv6Interface.InterfaceIndex} | Where-Object {$_.IPEnabled}).DefaultIPGateway
 	foreach ($IPv6Gateway in $IPv6Gateways) {
-		if ($IPv6Gateway -match $IPv6_REGEXP)
-		{
+		if ($IPv6Gateway -match $IPv6_REGEXP) {
 			$IPConfig.DefaultRouterIPv6 = $IPv6Gateway
 		}
 	}
@@ -344,6 +323,35 @@ function getLocalDnsServerName {
 	}
 }
 
+function resolveHostToIP {
+	param (
+		[Parameter(mandatory=$True)]
+		[string]$HostName,
+		[Parameter(mandatory=$True)]
+		[string]$RecordType,
+		[switch]$DNSOnly,
+		[ValidateSet('First','Last')]
+		[string]$Select = 'First'
+	)
+	$params = @{ QuickTimeout = $true; type = $RecordType; Name = "$HostName." }
+	if ($DNSOnly) { $params.DNSOnly = $true; $params.NoHostsFile = $true }
+
+	$ips = Resolve-DnsName @params |
+		Where-Object -Property Section -eq "Answer" |
+		Where-Object -Property Type -eq $RecordType |
+		Select-Object -ExpandProperty IPAddress |
+		Where-Object { $_ }
+
+	if ($RecordType -eq 'AAAA') {
+		$ips = $ips | Sort-Object -Property { [IPAddress]$_ }
+	} else {
+		$ips = $ips | Sort-Object -Property { [Version]$_ }
+	}
+
+	if ($Select -eq 'Last') { return $ips | Select-Object -Last 1 }
+	else                    { return $ips | Select-Object -First 1 }
+}
+
 function getPublicDnsServerIPs {
 	param (
 		[Parameter(mandatory=$True)]
@@ -351,8 +359,8 @@ function getPublicDnsServerIPs {
 	)
 	$IPConfig.PublicDnsServerName = $PUBLIC_DNS_SERVER_NAME
 	try {
-		$IPConfig.PublicDnsServerIPv4 = Resolve-DnsName -QuickTimeout -type A "$PUBLIC_DNS_SERVER_NAME." |  Where-Object -Property Section -eq "Answer" |  Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -first 1
-		$IPConfig.PublicDnsServerIPv6 = Resolve-DnsName -QuickTimeout -type AAAA "$PUBLIC_DNS_SERVER_NAME." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" |  select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Select-Object -first 1
+		$IPConfig.PublicDnsServerIPv4 = resolveHostToIP -HostName $PUBLIC_DNS_SERVER_NAME -RecordType 'A'
+		$IPConfig.PublicDnsServerIPv6 = resolveHostToIP -HostName $PUBLIC_DNS_SERVER_NAME -RecordType 'AAAA'
 	} catch {
 		Write-Error "Public DNS server '$PUBLIC_DNS_SERVER_NAME' could not be resolved. Aborting."
 		exit 1
@@ -372,6 +380,7 @@ function getLocalDnsServerIPs {
 		$IPv4Interface = getDefaultRouteInterface('IPv4')
 		$IPv6Interface = getDefaultRouteInterface('IPv6')
 
+		# AddressFamily: 2 = IPv4, 23 = IPv6
 		$IPConfig.LocalDnsServerIPv4 = (get-DnsClientServerAddress -InterfaceIndex $IPv4Interface.InterfaceIndex | Where-Object -Property AddressFamily -eq "2").ServerAddresses[0]
 		$IPConfig.LocalDnsServerIPv6 = (get-DnsClientServerAddress -InterfaceIndex $IPv6Interface.InterfaceIndex | Where-Object -Property AddressFamily -eq "23").ServerAddresses[0]
 	} catch {
@@ -390,8 +399,8 @@ function getAUXTestIPs {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$IPConfig.AUXAddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -first 1
-		$IPConfig.AUXAddrIPv6 = (Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$AUX_TEST_HOST." | Where-Object -Property section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Where-Object { $_ } )[0]
+		$IPConfig.AUXAddrIPv4 = resolveHostToIP -HostName $AUX_TEST_HOST -RecordType 'A'    -DNSOnly
+		$IPConfig.AUXAddrIPv6 = resolveHostToIP -HostName $AUX_TEST_HOST -RecordType 'AAAA' -DNSOnly
 	} catch {
 		Write-Warning "Could not resolve AUX host IPs, skipping."
 		$IPConfig.AUXAddrIPv4 = "n/a"
@@ -408,10 +417,10 @@ function getPublicTestIPs {
 		[IPConfigClass]$IPConfig
 	)
 	try {
-		$IPConfig.PublicTestHost1AddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$EXT_TEST_HOST1." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -last 1
-		$IPConfig.PublicTestHost1AddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$EXT_TEST_HOST1." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Select-Object -last 1
-		$IPConfig.PublicTestHost2AddrIPv4 = Resolve-DnsName -QuickTimeout -type A -DNSOnly -NoHostsFile "$EXT_TEST_HOST2." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -last 1
-		$IPConfig.PublicTestHost2AddrIPv6 = Resolve-DnsName -QuickTimeout -type AAAA -DNSOnly -NoHostsFile "$EXT_TEST_HOST2." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" | select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Select-Object -last 1
+		$IPConfig.PublicTestHost1AddrIPv4 = resolveHostToIP -HostName $EXT_TEST_HOST1 -RecordType 'A'    -DNSOnly -Select Last
+		$IPConfig.PublicTestHost1AddrIPv6 = resolveHostToIP -HostName $EXT_TEST_HOST1 -RecordType 'AAAA' -DNSOnly -Select Last
+		$IPConfig.PublicTestHost2AddrIPv4 = resolveHostToIP -HostName $EXT_TEST_HOST2 -RecordType 'A'    -DNSOnly -Select Last
+		$IPConfig.PublicTestHost2AddrIPv6 = resolveHostToIP -HostName $EXT_TEST_HOST2 -RecordType 'AAAA' -DNSOnly -Select Last
 	} catch {
 		Write-Warning "Could not resolve IPs of public test hosts, falling back to names."
 		$IPConfig.PublicTestHost1AddrIPv4 = $EXT_TEST_HOST1
@@ -490,6 +499,8 @@ function writeSpin ($counter) {
 
 function jobsEvalThenPurge {
 
+	$fail = 0
+	$warning = 0
 	foreach ($job in Get-Job) {
 
 		$OutputJob = 0
@@ -627,9 +638,11 @@ $DNSUDP_PingTestCode = {
 		# Create UDP client and set timeout
 		$udpClient = New-Object System.Net.Sockets.UdpClient($addrFamily)
 
-        $targetAsInt=[bigint]::new(([System.Net.IPAddress]::Parse($TARGET).GetAddressBytes() + 0)) % 8192
+		# Convert target IP bytes to integer (+ 0 forces byte[] to BigInteger), mod 8192
+		# gives a deterministic per-target offset so concurrent IPv4/IPv6 jobs don't collide
+		$targetAsInt = [bigint]::new(([System.Net.IPAddress]::Parse($TARGET).GetAddressBytes() + 0)) % 8192
 
-		# Fixed local port to bind to (change if needed)
+		# Base port 40000 + IP version (4 or 6) + per-target offset
 		$localPort = 40000 + $IPVER + $targetAsInt
 
 		# Create local endpoint to bind socket (IPv4 or IPv6 Any)
@@ -651,7 +664,6 @@ $DNSUDP_PingTestCode = {
 			[byte](Get-Random -Minimum 0 -Maximum 256),
 			[byte](Get-Random -Minimum 0 -Maximum 256)
 		)
-		#$transactionId = [byte[]]@(([byte]0),([byte]$IPVER))
 
         $flags = 0x01, 0x00  # Standard query
         $questions = 0x00, 0x01
@@ -743,11 +755,7 @@ $DNSTestCode = {
 		[string]$TARGET
 	)
 	# NOTE: appending a "." to the TARGET if needed, to resolve only FQDN
-	if (($DNS_RECORD_TYPE -notmatch '^A{1}A{0,3}$') -or ($TARGET -match '\.$')) {
-		$TargetFQDN = $TARGET
-	} else {
-		$TargetFQDN = "${TARGET}."
-	}
+	$TargetFQDN = (($DNS_RECORD_TYPE -notmatch '^A{1}A{0,3}$') -or ($TARGET -match '\.$')) ? $TARGET : "${TARGET}."
 
 	Write-Output "Trying to resolve $($DNS_RECORD_TYPE) of $($TargetFQDN) via $($DNS_SERVER)"
 	if ($OPT_NOREC) {
@@ -762,7 +770,6 @@ $DNSTestCode = {
 			$success = $True
 			if ($result.TTL -eq 0) {
 				Write-Output "Warning: Abnormal DNS entry TTL (0) returned."
-				$warn = $True
 			}
 		} else {
 			$success = $False
@@ -806,24 +813,25 @@ $PingTestCode = {
 	}
 	
 	if ($?) {
-		$matches="" #initialize empty to avoid null array index error on no match
-		(($output | Select-String -Pattern "[=<].*ms$" -Raw) -match "[=<]\s?([0-9]{1,5})ms$") > $null
-		if ([bool]$matches[1]) {
-			$RTT=[int]$matches[1]
+		$rttMatch = $null
+		if (($output | Select-String -Pattern "[=<].*ms$" -Raw) -match "[=<]\s?([0-9]{1,5})ms$") {
+			$rttMatch = $Matches
+		}
+		if ($rttMatch -and [bool]$rttMatch[1]) {
+			$RTT = [int]$rttMatch[1]
 		} else {
-			$RTT=-1
+			$RTT = -1
 		}
 		
 		# match 0 packets in '(0% loss', in a language agnostic way, also check if we have a RTT
 		if (("$output" -match '\(0\%') -and ($RTT -ge 0)) {
 			$success = $True
 
-			# Assumption: RTT shall be <100ms on same link, <200ms on LAN, <500ms on WAN
+			# RTT thresholds: <100ms same-link (maxhops=1), <200ms LAN (maxhops=2), <500ms WAN
 			if ((($OPT_MAXHOPS -eq 1) -and ($RTT -ge 100)) -or
 			    (($OPT_MAXHOPS -eq 2) -and ($RTT -ge 200)) -or
 			    ($RTT -ge 500)) {
 				Write-Output "Warning: Ping RTT (round trip time) abnormally high: ${RTT}ms."
-				$warn = $True
 			}
 		} else {
 			Write-Output "Failure: Ping request sent but response missing (or after timeout of ${TIMEOUT_PING}ms)."
@@ -860,6 +868,7 @@ Write-Host "($timeStamp): Starting up mon-con"
 # set up variables
 $Cycle = 0
 $CyclesWithFail = 0
+$CyclesWithWarnings = 0
 $DNSTestDynPrefix = 0
 
 $IPConfig = New-Object -TypeName IPConfigClass
@@ -1142,11 +1151,11 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	foreach ($test in $tests) {
 		if ($test.enabled) {				
 			if ([string]::IsNullOrEmpty($test.dynargvar)) {
-				$args = $test.args
+				$testArgs = $test.args
 			} else {
-				$args = $test.args + $(get-variable -name $test.dynargvar -ValueOnly -ErrorAction SilentlyContinue)
+				$testArgs = $test.args + $(get-variable -name $test.dynargvar -ValueOnly -ErrorAction SilentlyContinue)
 			}
-			$null = Start-ThreadJob -ScriptBlock $test.code -ArgumentList $args -Name $test.name -ThrottleLimit $($enabled_tests+1)
+			$null = Start-ThreadJob -ScriptBlock $test.code -ArgumentList $testArgs -Name $test.name -ThrottleLimit $($enabled_tests+1)
 		}
 	}
 
@@ -1226,7 +1235,7 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	$jobs = Get-Job
 	if ($jobs) {
 		Write-Host "Gathering last results from run #${Cycle}: " -NoNewLine
-		$results = Wait-Job -Timeout 0.1 -job $jobs
+		$null = Wait-Job -Timeout 0.1 -job $jobs
 		# abort jobs that have not finished by now
 		Get-Job | Stop-Job
 		
@@ -1251,7 +1260,7 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 			} else {
 				$temp_percent = "N/A"
 			}
-			$stuffChars=($test.name.Length -lt 12) ? 12-$test.name.Length : 0 
+			$stuffChars = ($test.name.Length -lt 12) ? 12-$test.name.Length : 0
 			Write-Host ($test.name + (' ' * $stuffChars) + ':') -NoNewLine
 			if ($temp_fail -gt 1) {
 				Write-Host $temp_percent% -NoNewLine -ForeGroundColor Red
@@ -1263,7 +1272,7 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 			Write-Host " ($temp_pass/$temp_total)" -NoNewLine
 			Write-Host "   pass% (passed/total)" -ForeGroundColor DarkGray
 		} else {
-			Write-Debug "$($test.Name) is disabled: No stats."
+			Write-Debug "$($test.name) is disabled: No stats."
 		}
 	}
 
