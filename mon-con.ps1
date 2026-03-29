@@ -267,7 +267,7 @@ function getLocalHostIPs {
 		$IPs = $IPv6Interface.IPAddress
 		foreach ($IP in $IPs) {
 			if ($IP -match $IPv6_REGEXP) {
-				if ($IP -match "fe80:*") {
+				if ($IP -match "^fe80::.*") {
 					$IPConfig.OwnLLIPv6 = $IP;
 				} else {
 					$IPConfig.OwnIPv6 = $IP;
@@ -358,9 +358,8 @@ function getPublicDnsServerIPs {
 		$IPConfig.PublicDnsServerIPv4 = Resolve-DnsName -QuickTimeout -type A "$PUBLIC_DNS_SERVER_NAME." |  Where-Object -Property Section -eq "Answer" |  Where-Object -Property Type -eq "A" | select -ExpandProperty IPAddress | Sort-Object -Property { [Version]$_ } | Select-Object -first 1
 		$IPConfig.PublicDnsServerIPv6 = Resolve-DnsName -QuickTimeout -type AAAA "$PUBLIC_DNS_SERVER_NAME." | Where-Object -Property Section -eq "Answer" | Where-Object -Property Type -eq "AAAA" |  select -ExpandProperty IPAddress | Sort-Object -Property { [IPAddress]$_ } | Select-Object -first 1
 	} catch {
-		Write-Warning "Public DNS server not resolved. Falling back to DNS server name."
-		$IPConfig.PublicDnsServerIPv4 = $PUBLIC_DNS_SERVER_NAME
-		$IPConfig.PublicDnsServerIPv6 = $PUBLIC_DNS_SERVER_NAME
+		Write-Error "Public DNS server '$PUBLIC_DNS_SERVER_NAME' could not be resolved. Aborting."
+		exit 1
 	} finally {
 		Write-Host "Configured public DNS server:" $IPConfig.PublicDnsServerName
 		Write-Host "Public DNS server IPv4 address:" $IPConfig.PublicDnsServerIPv4
@@ -756,9 +755,9 @@ $DNSTestCode = {
 
 	Write-Output "Trying to Resolve $($DNS_RECORD_TYPE) of $($TargetFQDN) via $($DNS_SERVER)"
 	if ($OPT_NOREC) {
-		$output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -NoRecursion -QuickTimeout -Name $TargetFQDN	2> $error
+		$output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -NoRecursion -QuickTimeout -Name $TargetFQDN -ErrorVariable dnsError
 	} else {
-		$output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -QuickTimeout -Name $TargetFQDN 2> $error
+		$output = Resolve-DnsName -type $DNS_RECORD_TYPE -server $DNS_SERVER -DNSOnly -NoHostsFile -QuickTimeout -Name $TargetFQDN -ErrorVariable dnsError
 	}
 
 	if ($?) {
@@ -776,7 +775,7 @@ $DNSTestCode = {
 	} else {
 		$success = $False
 		Write-Output "Failure: Resolve-DnsName returned with error, details from command (if any) below."
-		Write-Output "$error"
+		Write-Output "$dnsError"
 	}
 		
 	# TODO: clean up reporting - below code should be considered a hack	
