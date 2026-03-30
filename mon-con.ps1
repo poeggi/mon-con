@@ -132,6 +132,9 @@ if (Test-Path(".\.mon-con.conf")) {
 	Get-Content .\.mon-con.conf | Invoke-Expression -ErrorAction SilentlyContinue
 }
 
+# Debug mode implies verbose
+if ($DebugPreference -ne 'SilentlyContinue') { $VerbosePreference = 'Continue' }
+
 
 #
 # global classes to use for objects
@@ -258,9 +261,9 @@ function getLocalHostIPs {
 		$IPConfig.OwnIPv6 = "::1"
 		$IPConfig.OwnLLIPv6 = "::1"
 	} finally {
-		Write-Host "Local (Own) IPv4 address:" $IPConfig.OwnIPv4
-		Write-Host "Local (Own) routeable IPv6 address:" $IPConfig.OwnIPv6
-		Write-Host "Local (Own) LinkLocal IPv6 address:" $IPConfig.OwnLLIPv6
+		Write-Verbose "Local (Own) IPv4 address: $($IPConfig.OwnIPv4)"
+		Write-Verbose "Local (Own) routeable IPv6 address: $($IPConfig.OwnIPv6)"
+		Write-Verbose "Local (Own) LinkLocal IPv6 address: $($IPConfig.OwnLLIPv6)"
 	}
 }
 
@@ -276,8 +279,8 @@ function getHostPublicIPs {
 	} catch {
 		Write-Warning "Own public IPs could not be determined."
 	} finally {
-		Write-Host "Host's public IPv4 address:" $IPConfig.OwnPubIPv4
-		Write-Host "Host's public IPv6 address:" $IPConfig.OwnPubIPv6
+		Write-Verbose "Host's public IPv4 address: $($IPConfig.OwnPubIPv4)"
+		Write-Verbose "Host's public IPv6 address: $($IPConfig.OwnPubIPv6)"
 	}
 }
 
@@ -303,8 +306,8 @@ function getDefaultRouterIPs {
 		}
 	}
 	
-	Write-Host "Default IPv4 router:" $IPConfig.DefaultRouterIPv4
-	Write-Host "Default IPv6 router:" $IPConfig.DefaultRouterIPv6
+	Write-Verbose "Default IPv4 router: $($IPConfig.DefaultRouterIPv4)"
+	Write-Verbose "Default IPv6 router: $($IPConfig.DefaultRouterIPv6)"
 }
 
 function getLocalDnsServerName {
@@ -319,7 +322,7 @@ function getLocalDnsServerName {
 		Write-Error "Local DNS server could not be determined."
 		exit
 	} finally {
-		Write-Host "Determined Local DNS server name:" $IPConfig.LocalDnsServerName
+		Write-Verbose "Determined local DNS server name: $($IPConfig.LocalDnsServerName)"
 	}
 }
 
@@ -365,9 +368,11 @@ function getPublicDnsServerIPs {
 		Write-Error "Public DNS server '$PUBLIC_DNS_SERVER_NAME' could not be resolved. Aborting."
 		exit 1
 	} finally {
-		Write-Host "Configured public DNS server:" $IPConfig.PublicDnsServerName
-		Write-Host "Public DNS server IPv4 address:" $IPConfig.PublicDnsServerIPv4
-		Write-Host "Public DNS server IPv6 address:" $IPConfig.PublicDnsServerIPv6
+		Write-Host "Configured test target, public DNS server:" $IPConfig.PublicDnsServerName
+		Write-Verbose "Public DNS server IPv4 address: $($IPConfig.PublicDnsServerIPv4)"
+		Write-Verbose "Public DNS server IPv6 address: $($IPConfig.PublicDnsServerIPv6)"
+		if (!$IPConfig.PublicDnsServerIPv4) { Write-Warning "Public DNS server IPv4 address could not be resolved." }
+		if (!$IPConfig.PublicDnsServerIPv6) { Write-Warning "Public DNS server IPv6 address could not be resolved." }
 	}
 }
 
@@ -388,8 +393,8 @@ function getLocalDnsServerIPs {
 		$IPConfig.LocalDnsServerIPv4 = $IPConfig.LocalDnsServerName
 		$IPConfig.LocalDnsServerIPv6 = $IPConfig.LocalDnsServerName
 	} finally {
-		Write-Host "Local (IF configured) DNS server IPv4 address:" $IPConfig.LocalDnsServerIPv4
-		Write-Host "Local (IF configured) DNS server IPv6 address:" $IPConfig.LocalDnsServerIPv6
+		Write-Verbose "Local (IF configured) DNS server IPv4 address: $($IPConfig.LocalDnsServerIPv4)"
+		Write-Verbose "Local (IF configured) DNS server IPv6 address: $($IPConfig.LocalDnsServerIPv6)"
 	}
 }
 
@@ -406,8 +411,8 @@ function getAUXTestIPs {
 		$IPConfig.AUXAddrIPv4 = "n/a"
 		$IPConfig.AUXAddrIPv6 = "n/a"
 	} finally {
-		Write-Host "AUX server IPv4 address:" $IPConfig.AUXAddrIPv4
-		Write-Host "AUX server IPv6 address:" $IPConfig.AUXAddrIPv6
+		Write-Verbose "AUX server IPv4 address: $($IPConfig.AUXAddrIPv4)"
+		Write-Verbose "AUX server IPv6 address: $($IPConfig.AUXAddrIPv6)"
 	}
 }
 
@@ -428,12 +433,16 @@ function getPublicTestIPs {
 		$IPConfig.PublicTestHost2AddrIPv4 = $EXT_TEST_HOST2
 		$IPConfig.PublicTestHost2AddrIPv6 = $EXT_TEST_HOST2
 	} finally {
-		Write-Host "Configured public server #1:" $EXT_TEST_HOST1
-		Write-Host "Public Server #1 IPv4 address:" $IPConfig.PublicTestHost1AddrIPv4
-		Write-Host "Public Server #1 IPv6 address:" $IPConfig.PublicTestHost1AddrIPv6
-		Write-Host "Configured public server #2:" $EXT_TEST_HOST2
-		Write-Host "Public Server #2 IPv4 address:" $IPConfig.PublicTestHost2AddrIPv4
-		Write-Host "Public Server #2 IPv6 address:" $IPConfig.PublicTestHost2AddrIPv6
+		Write-Host "Configured test target, public server #1:" $EXT_TEST_HOST1
+		Write-Verbose "Public server #1 IPv4 address: $($IPConfig.PublicTestHost1AddrIPv4)"
+		Write-Verbose "Public server #1 IPv6 address: $($IPConfig.PublicTestHost1AddrIPv6)"
+		if (!$IPConfig.PublicTestHost1AddrIPv4) { Write-Warning "Public test host #1 IPv4 address could not be resolved." }
+		if (!$IPConfig.PublicTestHost1AddrIPv6) { Write-Warning "Public test host #1 IPv6 address could not be resolved." }
+		Write-Host "Configured test target, public server #2:" $EXT_TEST_HOST2
+		Write-Verbose "Public server #2 IPv4 address: $($IPConfig.PublicTestHost2AddrIPv4)"
+		Write-Verbose "Public server #2 IPv6 address: $($IPConfig.PublicTestHost2AddrIPv6)"
+		if (!$IPConfig.PublicTestHost2AddrIPv4) { Write-Warning "Public test host #2 IPv4 address could not be resolved." }
+		if (!$IPConfig.PublicTestHost2AddrIPv6) { Write-Warning "Public test host #2 IPv6 address could not be resolved." }
 	}
 }
 
@@ -522,7 +531,7 @@ function jobsEvalThenPurge {
 			$test.testpass++
 		} elseif ($job.State -eq 'Failed') { # Fails means exception
 			# FAILURE => RED
-			if ($VerbosePreference -or $DebugPreference) {
+			if ($VerbosePreference) {
 				$OutputJob = 1
 			}
 			$fail++
@@ -531,7 +540,7 @@ function jobsEvalThenPurge {
 			if ($BeepOnError) {[Console]::Beep()}
 		} elseif ($job.State -eq 'Stopped') {
 			# job was stopped (the way to timeout)
-			if ($VerbosePreference -or $DebugPreference) {
+			if ($VerbosePreference) {
 				$OutputJob = 1
 			}
 			$fail++
@@ -863,7 +872,7 @@ $startupPriority = (Get-Process -Id $PID).PriorityClass
 
 # take note of the script start time
 $timeStamp = Get-Date -Format "HH:mm:ss"	
-Write-Host "($timeStamp): Starting up mon-con"
+Write-Verbose "($timeStamp): Starting up mon-con"
 
 # set up variables
 $Cycle = 0
@@ -898,7 +907,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D4-EXT';
-		descr='DNS (recursive) resolve public "A" record via local (IF config) DNS, using IPv4';
+		descr='DNS recursive resolve public "A" record via local (IF config) DNS, IPv4';
 		code=$DNSTestCode;
 		args=('A', $IPConfig.LocalDnsServerIPv4.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
@@ -906,7 +915,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D6-EXT';
-		descr='DNS (recursive) resolve public "AAAA" record via local (IF config) DNS, using IPv6';
+		descr='DNS recursive resolve public "AAAA" record via local (IF config) DNS, IPv6';
 		code=$DNSTestCode;
 		args=('AAAA', $IPConfig.LocalDnsServerIPv6.IPAddressToString, [bool]0);
 		dynargvar='SHORT_TTL_DNSTEST_HOST';
@@ -962,7 +971,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D4-NRI';
-		descr='DNS resolve (no-recurse) from local (IF config) DNS its own "PTR" record, via IPv4';
+		descr='DNS no-recurse resolve of local (IF config) DNS its own "PTR" record, IPv4';
 		code=$DNSTestCode;
 		args=('PTR', $IPConfig.LocalDnsServerIPv4.IPAddressToString, [bool]1, $IPConfig.LocalDnsServerIPv4.IPAddressToString);
 		dynargvar='';
@@ -970,7 +979,7 @@ getNetworkConfig $IPConfig
 	}
 	[TestClass]@{
 		name='D6-NRI';
-		descr='DNS resolve (no-recurse) from local (IF config) DNS its own "PTR" record, via IPv6';
+		descr='DNS no-recurse resolve of local (IF config) DNS its own "PTR" record, IPv6';
 		code=$DNSTestCode;
 		args=('PTR', $IPConfig.LocalDnsServerIPv6.IPAddressToString, [bool]1, $IPConfig.LocalDnsServerIPv6.IPAddressToString);
 		dynargvar='';
@@ -1087,7 +1096,7 @@ foreach ($test in $tests) {
 }
 
 Write-Host ("Test interval: one cycle every " + $TestInterval + " milliseconds")
-Write-Host ("The timeout (of individual tests) is set to " + $Timeout + " milliseconds")
+Write-Host "Individual test job timeout: $Timeout milliseconds"
 
 
 if ($TestInterval -le $Timeout) {
@@ -1247,8 +1256,8 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	Get-Job | Remove-Job -Force -ErrorAction SilentlyContinue
 
 	# generate and output summary stats
-	Write-Host ""
 	Write-Host "Test Results Summary:"
+	Write-Host ('test-name' + ' ' * 6 + 'pass%   (passed/total)') -ForeGroundColor DarkGray
 	foreach ($test in $tests) {
 		if ($test.enabled) {
 			$temp_pass  = $test.testpass
@@ -1256,21 +1265,21 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 			$temp_total = $temp_pass + $temp_fail
 
 			if ($temp_total -gt 0) {
-				$temp_percent = [Math]::Round($temp_pass / $temp_total * 100, 2)
+				$temp_percent = ([string]::Format([System.Globalization.CultureInfo]::InvariantCulture, "{0,6:F2}%", ($temp_pass / $temp_total * 100)))
 			} else {
-				$temp_percent = "N/A"
+				$temp_percent = "    N/A"
 			}
 			$stuffChars = ($test.name.Length -lt 12) ? 12-$test.name.Length : 0
-			Write-Host ($test.name + (' ' * $stuffChars) + ':') -NoNewLine
+			Write-Host ($test.name + (' ' * $stuffChars) + ': ') -NoNewLine
 			if ($temp_fail -gt 1) {
-				Write-Host $temp_percent% -NoNewLine -ForeGroundColor Red
+				Write-Host $temp_percent -NoNewLine -ForeGroundColor Red
 			} elseif ($temp_fail -gt 0) {
-				Write-Host $temp_percent% -NoNewLine -ForeGroundColor Yellow
+				Write-Host $temp_percent -NoNewLine -ForeGroundColor Yellow
 			} else {
-				Write-Host $temp_percent% -NoNewLine -ForeGroundColor Green
+				Write-Host $temp_percent -NoNewLine -ForeGroundColor Green
 			}
-			Write-Host " ($temp_pass/$temp_total)" -NoNewLine
-			Write-Host "   pass% (passed/total)" -ForeGroundColor DarkGray
+			Write-Host "  ($temp_pass/$temp_total)" -NoNewLine
+			Write-Host
 		} else {
 			Write-Debug "$($test.name) is disabled: No stats."
 		}
@@ -1282,5 +1291,6 @@ while (($Iterations -le 0) -or ($Cycle -lt $Iterations))
 	# re-enable Ctrl-c
 	[Console]::TreatControlCAsInput = $False
 
-	Write-Host "Exiting."
+	$timeStamp = Get-Date -Format "HH:mm:ss"
+	Write-Verbose "($timeStamp): Exiting."
 }
