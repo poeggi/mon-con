@@ -77,6 +77,7 @@
 	.NOTES
 	Author  : Kai Poggensee  
 	Version : 0.5 (2025-06-12) - introduce new DNS ping to optimize tests
+	Version : 0.6 (2026-03-30) - bug fixes, stats refactor, readability and verbose output improvements
 #>
 
 #
