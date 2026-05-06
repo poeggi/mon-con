@@ -2,6 +2,11 @@
 ## SYNOPSIS
 MON(itor)-CON(nection), test and monitor your internet connection.
 
+'mon-con' is using PowerShell jobs and spawns multiple of them to 
+test multiple protocols and connections in parallel, then outputs
+the result on the console.
+
+
 ## SYNTAX
 ```powershell
 .\mon-con.ps1 [-BeepOnError] [[-Display] <String>] [[-FocusTest] <String>] [[-Iterations] <Int32>] [-ListTests] [[-TestInterval] <Int32>] [[-Timeout] <Int32>] [<CommonParameters>]
