@@ -2,9 +2,9 @@
 ## SYNOPSIS
 MON(itor)-CON(nection), test and monitor your internet connection.
 
-'mon-con' is using PowerShell jobs and spawns multiple of them to 
-test multiple protocols and connections in parallel, then outputs
-the result on the console.
+'mon-con' is facilitating PowerShell jobs, spawns multiple of them to 
+test multiple protocols and flows concurrently, then outputs
+the result on the console after each cycle.
 
 
 ## SYNTAX
@@ -13,14 +13,15 @@ the result on the console.
 ```
 
 ## DESCRIPTION
-This Powershell script does monitor a chain of interfaces / connections.
+'mon-con' tests and monitors a chain of interfaces / connections.
 It has been developed and tested on Win 11, requires min. Powershell v7.
 
 LOCAL-SYSTEM(PC)<->LAN<->ROUTER/GATEWAY<->INTERNET-UPLINK<->EXT.SERVER(S)
 
-IPv4 and IPv6 are tested concurrently, assuming both are available.
+IPv4 and IPv6 are tested concurrently, if both are available.
+Available interfaces and protocols are automatically determined.
 
-From your local system, all the way up the the mighty internet, it tests
+From your local system, all the way up the the public internet, it tests
 different intermediate hops and services. They are automatically determined
 and/or pre-configured in the script, can be overridden in a config file.
 These tests should aid debugging an internet connection and help identify
